@@ -11,10 +11,10 @@ interface ChatContainerProps {
 export const ChatContainer = ({ messages, isTyping }: ChatContainerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom smoothly when messages change
   useEffect(() => {
     if (containerRef.current) {
       const { scrollHeight, clientHeight } = containerRef.current;
+
       containerRef.current.scrollTo({
         top: scrollHeight - clientHeight,
         behavior: 'smooth'
@@ -23,29 +23,34 @@ export const ChatContainer = ({ messages, isTyping }: ChatContainerProps) => {
   }, [messages, isTyping]);
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth"
+      className="h-full overflow-y-auto p-4 md:p-8 scroll-smooth"
     >
-      <div className="max-w-4xl mx-auto flex flex-col justify-end min-h-full pt-10 pb-4">
+      <div className="max-w-5xl mx-auto flex flex-col justify-end min-h-full pt-10 pb-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center opacity-50 my-auto">
-            <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(37,99,235,0.3)]">
-              <span className="text-3xl">✨</span>
-            </div>
-            <h2 className="text-2xl font-semibold text-white mb-2">Welcome to Nexus AI</h2>
-            <p className="text-gray-400 max-w-md">Your ultra-modern AI assistant. How can I help you today?</p>
+          <div className="flex flex-col items-center justify-center h-full text-center opacity-80 my-auto">
+            <h2 className="text-3xl font-bold text-white mb-2 font-rajdhani tracking-[0.2em] uppercase drop-shadow-[0_0_10px_rgba(0,240,255,0.8)]">
+              J.A.R.V.I.S. Ready
+            </h2>
+
+            <p className="text-jarvis-cyan/60 max-w-md font-mono text-sm tracking-wider uppercase">
+              Awaiting your directives, sir.
+            </p>
           </div>
         ) : (
           <AnimatePresence initial={false}>
             {messages.map((msg, index) => (
-              <ChatBubble 
+              <ChatBubble
                 key={msg.id}
                 id={msg.id}
-                role={msg.role} 
+                role={msg.role}
                 content={msg.content}
-                // If it's the last assistant message and we're currently typing, apply shimmer/pulse
-                isStreaming={isTyping && index === messages.length - 1 && msg.role === 'assistant'}
+                isStreaming={
+                  isTyping &&
+                  index === messages.length - 1 &&
+                  msg.role === 'assistant'
+                }
               />
             ))}
           </AnimatePresence>
