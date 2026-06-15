@@ -1,19 +1,203 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatContainer } from './components/ChatContainer';
-import { useChatStream } from './hooks/useChatStream';
+import { useChatStream, Message } from './hooks/useChatStream';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
-import { JarvisArcVisual } from './components/JarvisArcVisual';
-import { Send, Mic, MicOff, Volume2, VolumeX, Activity, Cpu, Wifi, Square } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Sun, 
+  Moon, 
+  Settings, 
+  MessageSquare, 
+  Menu, 
+  X, 
+  Mic, 
+  MicOff, 
+  Volume2, 
+  VolumeX, 
+  Square,
+  ArrowUp
+} from 'lucide-react';
 
 type InputMode = 'text' | 'voice';
 
-function App() {
-  const { messages, sendMessage, isTyping } = useChatStream();
-  const [input, setInput] = useState('');
-  const [time, setTime] = useState(new Date().toLocaleTimeString());
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  timestamp: number;
+}
 
-  // Track the mode of the current interaction
+// Minimal modern logo lettermark
+const Logo = () => (
+  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-primary to-brand-secondary text-white font-bold text-base shadow-sm select-none">
+    J
+  </div>
+);
+
+function App() {
+  const { messages, setMessages, sendMessage, isTyping } = useChatStream();
+  const [input, setInput] = useState('');
   const [lastInputMode, setLastInputMode] = useState<InputMode>('text');
+
+  // Multi-chat states
+  const [chats, setChats] = useState<ChatSession[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('theme') as 'light' | 'dark') || 'dark';
+  });
+
+  const isSwitchingChat = useRef(false);
+
+  const handleClearAllChats = () => {
+    localStorage.removeItem('jarvis_chats');
+    setChats([]);
+    setMessages([]);
+    setActiveChatId(null);
+    setSettingsOpen(false);
+    
+    setTimeout(() => {
+      handleNewChat();
+    }, 0);
+  };
+
+  // Sync theme to root class list
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  // Load chat sessions from local storage
+  useEffect(() => {
+    const savedChats = localStorage.getItem('jarvis_chats');
+    if (savedChats) {
+      try {
+        const parsed = JSON.parse(savedChats) as ChatSession[];
+        setChats(parsed);
+        if (parsed.length > 0) {
+          isSwitchingChat.current = true;
+          setActiveChatId(parsed[0].id);
+          setMessages(parsed[0].messages);
+          setTimeout(() => {
+            isSwitchingChat.current = false;
+          }, 50);
+        } else {
+          // Initialize first default chat if empty
+          handleNewChat();
+        }
+      } catch (e) {
+        console.error("Error loading chat history:", e);
+        handleNewChat();
+      }
+    } else {
+      handleNewChat();
+    }
+  }, []);
+
+  // Save changes to current chat messages
+  useEffect(() => {
+    if (isSwitchingChat.current || !activeChatId) return;
+
+    const currentChat = chats.find(c => c.id === activeChatId);
+    if (!currentChat) return;
+
+    const messagesChanged = JSON.stringify(currentChat.messages) !== JSON.stringify(messages);
+
+    if (messagesChanged) {
+      setChats(prev => {
+        const updated = prev.map(c => {
+          if (c.id === activeChatId) {
+            let newTitle = c.title;
+            // Generate a readable title from the first user message if it's currently default
+            if (c.title === 'New Chat' && messages.length > 0) {
+              const firstUserMsg = messages.find(m => m.role === 'user');
+              if (firstUserMsg) {
+                newTitle = firstUserMsg.content.slice(0, 26) + (firstUserMsg.content.length > 26 ? '...' : '');
+              }
+            }
+            return {
+              ...c,
+              title: newTitle,
+              messages: messages,
+              timestamp: Date.now()
+            };
+          }
+          return c;
+        });
+        localStorage.setItem('jarvis_chats', JSON.stringify(updated));
+        return updated;
+      });
+    }
+  }, [messages, activeChatId, chats]);
+
+  // Start a new chat session
+  const handleNewChat = () => {
+    isSwitchingChat.current = true;
+    const newId = crypto.randomUUID();
+    const newChat: ChatSession = {
+      id: newId,
+      title: 'New Chat',
+      messages: [],
+      timestamp: Date.now()
+    };
+    
+    setChats(prev => {
+      const updated = [newChat, ...prev];
+      localStorage.setItem('jarvis_chats', JSON.stringify(updated));
+      return updated;
+    });
+    setActiveChatId(newId);
+    setMessages([]);
+    setSidebarOpen(false);
+
+    setTimeout(() => {
+      isSwitchingChat.current = false;
+    }, 50);
+  };
+
+  // Switch to an existing chat session
+  const handleSelectChat = (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      isSwitchingChat.current = true;
+      setActiveChatId(chatId);
+      setMessages(chat.messages);
+      setSidebarOpen(false);
+
+      setTimeout(() => {
+        isSwitchingChat.current = false;
+      }, 50);
+    }
+  };
+
+  // Delete an existing chat session
+  const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation();
+    
+    setChats(prev => {
+      const updated = prev.filter(c => c.id !== chatId);
+      localStorage.setItem('jarvis_chats', JSON.stringify(updated));
+      
+      if (activeChatId === chatId) {
+        if (updated.length > 0) {
+          setTimeout(() => {
+            handleSelectChat(updated[0].id);
+          }, 0);
+        } else {
+          setTimeout(() => {
+            handleNewChat();
+          }, 0);
+        }
+      }
+      return updated;
+    });
+  };
 
   // Handle voice commands: automatically send when speech is recognized
   const handleSpeechResult = (transcript: string) => {
@@ -33,14 +217,6 @@ function App() {
     toggleMute,
     hasRecognition
   } = useVoiceAssistant(handleSpeechResult);
-
-  // Update time widget
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Speak AI responses ONLY if the last input mode was 'voice'
   useEffect(() => {
@@ -70,160 +246,301 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-jarvis-darker text-jarvis-cyan font-rajdhani relative overflow-hidden">
-
-      {/* Background Arc Visual */}
-      <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none opacity-20">
-        <JarvisArcVisual className="w-[800px] h-[800px] md:w-[1200px] md:h-[1200px]" isActive={isSpeaking || isTyping} />
-      </div>
-
-      {/* Grid Overlay */}
-      <div className="absolute inset-0 z-0 pointer-events-none bg-[linear-gradient(rgba(0,240,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.03)_1px,transparent_1px)] bg-[size:30px_30px]" />
-
-      {/* Scanline Animation */}
-      <div className="absolute inset-0 z-0 pointer-events-none animate-scan-line bg-gradient-to-b from-transparent via-jarvis-cyan/10 to-transparent opacity-20 h-32" />
-
-      {/* Header / Top HUD */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-jarvis-cyan/20 glass-panel z-10">
-        <div className="flex items-center gap-4 hud-border p-2">
-          {/* Top Left Header Visual */}
-          <div className="relative flex items-center justify-center w-16 h-16 bg-black/50 rounded-full shadow-[0_0_15px_rgba(0,240,255,0.2)]">
-            <JarvisArcVisual className="w-14 h-14" isActive={isTyping || isSpeaking} />
+    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 font-sans overflow-hidden transition-colors duration-300">
+      
+      {/* Left Sidebar Navigation */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700/60
+        flex flex-col transform transition-transform duration-300 ease-in-out
+        md:static md:translate-x-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        {/* Sidebar Header */}
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center gap-3">
+            <Logo />
+            <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-slate-100 select-none">Jarvis</span>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-widest uppercase text-white drop-shadow-[0_0_8px_rgba(0,240,255,0.8)]">J.A.R.V.I.S.</h1>
-            <p className="text-xs tracking-widest text-jarvis-cyan/80 flex items-center gap-2 uppercase">
-              <span className="w-2 h-2 rounded-full bg-jarvis-cyan animate-pulse shadow-[0_0_5px_#00f0ff]"></span>
-              System Online
-            </p>
-          </div>
-        </div>
-
-        {/* Diagnostics Top Right */}
-        <div className="hidden md:flex items-center gap-6 text-xs tracking-widest font-mono text-jarvis-cyan/70">
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4" />
-            <span>CPU: {Math.floor(Math.random() * 20 + 20)}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4" />
-            <span>MEM: {Math.floor(Math.random() * 10 + 40)}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Wifi className="w-4 h-4" />
-            <span>NET: STABLE</span>
-          </div>
-          <div className="text-jarvis-cyan border border-jarvis-cyan/30 px-3 py-1 rounded bg-jarvis-cyan/10">
-            {time}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 z-10 overflow-hidden relative">
-        <ChatContainer messages={messages} isTyping={isTyping} />
-      </div>
-
-      {/* Input Area / Bottom HUD */}
-      <div className="p-4 md:p-6 z-10 glass-panel border-t border-jarvis-cyan/20">
-        <div className="max-w-5xl mx-auto flex flex-col gap-2">
-
-          {/* Audio Visualizer / Controls */}
-          <div className="flex justify-between items-center px-4 mb-2 min-h-[24px]">
-            <div className="flex items-center gap-4">
-              {/* Only show voice controls if last interaction was voice or currently speaking */}
-              {(lastInputMode === 'voice' || isSpeaking || isListening) && (
-                <>
-                  <button
-                    onClick={toggleMute}
-                    className="text-jarvis-cyan/70 hover:text-jarvis-cyan transition-colors"
-                    title={isMuted ? "Unmute Voice" : "Mute Voice"}
-                  >
-                    {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                  </button>
-
-                  {isSpeaking && !isMuted && (
-                    <button
-                      onClick={stopSpeaking}
-                      className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 text-xs uppercase tracking-widest"
-                      title="Stop Speaking"
-                    >
-                      <Square className="w-4 h-4" /> Stop
-                    </button>
-                  )}
-
-                  {(isSpeaking || (isTyping && lastInputMode === 'voice')) && !isMuted && (
-                    <div className="flex items-end gap-1 h-6 ml-2">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-1 bg-jarvis-cyan rounded-t animate-wave"
-                          style={{ animationDelay: `${i * 0.15}s` }}
-                        />
-                      ))}
-                      <span className="text-[10px] font-mono tracking-widest ml-2 animate-pulse text-jarvis-cyan/70 uppercase">Audio Out</span>
-                    </div>
-                  )}
-
-                  {isListening && (
-                    <span className="text-[10px] font-mono tracking-widest ml-2 text-red-400 animate-pulse uppercase">Mic Active</span>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="text-[10px] font-mono tracking-widest uppercase">
-              Mode: <span className={lastInputMode === 'voice' ? 'text-blue-400' : 'text-jarvis-cyan'}>{lastInputMode}</span>
-            </div>
-          </div>
-
-          <form
-            onSubmit={handleSubmit}
-            className={`relative flex items-center bg-black/50 border p-2 hud-border transition-all
-              ${lastInputMode === 'voice'
-                ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-                : 'border-jarvis-cyan/30 focus-within:border-jarvis-cyan focus-within:shadow-[0_0_15px_rgba(0,240,255,0.2)]'
-              }
-            `}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
           >
-            {hasRecognition && (
-              <button
-                type="button"
-                onClick={toggleListen}
-                className={`p-3 mr-2 rounded-sm transition-all ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse' : 'text-jarvis-cyan/50 hover:text-jarvis-cyan hover:bg-jarvis-cyan/10'}`}
-                title={isListening ? "Stop Listening" : "Start Voice Input"}
-              >
-                {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </button>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* New Chat Button */}
+        <div className="p-4">
+          <button
+            onClick={handleNewChat}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-brand-primary hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors duration-200 shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Chat</span>
+          </button>
+        </div>
+
+        {/* Chat History Section */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+          <div className="px-3 mb-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider select-none">
+            Chat History
+          </div>
+          {chats.length <= 1 && chats[0]?.messages.length === 0 ? (
+            <div className="px-3 py-4 text-xs text-slate-400 dark:text-slate-500 italic select-none">
+              No recent conversations
+            </div>
+          ) : (
+            chats.map((chat) => {
+              // Hide empty new chat in history list unless it's selected
+              if (chat.messages.length === 0 && chat.id !== activeChatId) return null;
+              
+              return (
+                <div
+                  key={chat.id}
+                  onClick={() => handleSelectChat(chat.id)}
+                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-150 text-sm ${
+                    activeChatId === chat.id
+                      ? 'bg-slate-200/60 text-slate-900 dark:bg-slate-700 dark:text-slate-100 font-medium'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <MessageSquare className="w-4 h-4 flex-shrink-0 opacity-60 text-brand-primary" />
+                    <span className="truncate">{chat.title}</span>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteChat(e, chat.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 rounded transition-opacity duration-150"
+                    title="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </aside>
+
+      {/* Backdrop for mobile */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-900/40 dark:bg-slate-950/60 md:hidden backdrop-blur-xs"
+        />
+      )}
+
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+        
+        {/* Top Navbar */}
+        <header className="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-800/20 border-b border-slate-200 dark:border-slate-700/60 z-10 transition-colors duration-300">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h1 className="text-sm font-semibold text-slate-700 dark:text-slate-200 select-none">
+              {chats.find(c => c.id === activeChatId)?.title || 'Jarvis'}
+            </h1>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-2">
+            
+            {/* Audio Synthesis Info & Controls */}
+            {(lastInputMode === 'voice' || isSpeaking || isListening) && (
+              <div className="flex items-center gap-2 mr-2 border-r border-slate-200 dark:border-slate-700/60 pr-4">
+                {isSpeaking && (
+                  <button
+                    onClick={stopSpeaking}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-red-500 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-colors font-medium"
+                    title="Stop audio presentation"
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                    <span>Stop</span>
+                  </button>
+                )}
+                {isListening && (
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                )}
+                {isSpeaking && !isMuted && (
+                  <div className="flex items-end gap-0.5 h-3">
+                    {[...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-0.5 bg-brand-secondary rounded-full animate-pulse"
+                        style={{
+                          height: '100%',
+                          animationDelay: `${i * 0.12}s`,
+                          animationDuration: '0.8s'
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={toggleMute}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title={isMuted ? "Unmute speech feedback" : "Mute speech feedback"}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+              </div>
             )}
 
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={isListening ? "Listening..." : "Awaiting command input..."}
-              className="flex-1 bg-transparent border-none outline-none text-white placeholder-jarvis-cyan/40 py-3 font-mono text-sm tracking-wide"
-              disabled={isTyping || isListening}
-            />
-
+            {/* Light/Dark mode toggler */}
             <button
-              type="submit"
-              disabled={!input.trim() || isTyping || isListening}
-              className="p-3 bg-jarvis-cyan/20 text-jarvis-cyan hover:bg-jarvis-cyan hover:text-black border border-jarvis-cyan disabled:border-gray-700 disabled:text-gray-500 disabled:bg-transparent transition-all ml-2 flex items-center gap-2 uppercase tracking-widest text-sm font-bold"
+              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
             >
-              <span className="hidden md:inline">Execute</span>
-              <Send className="w-4 h-4" />
+              {theme === 'light' ? <Moon className="w-4.5 h-4.5" /> : <Sun className="w-4.5 h-4.5" />}
             </button>
-          </form>
 
-          <div className="flex justify-between items-center text-[10px] font-mono text-jarvis-cyan/50 tracking-widest mt-1 px-1">
-            <span>SECURE CHANNEL ENCRYPTED</span>
-            <span>v2.0.4 // STARK INDUSTRIES</span>
+            {/* Optional Settings button */}
+            <button 
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-4.5 h-4.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Messaging Box */}
+        <div className="flex-1 overflow-hidden relative">
+          <ChatContainer messages={messages} isTyping={isTyping} />
+        </div>
+
+        {/* Input box section */}
+        <div className="p-4 md:p-6 border-t border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 transition-colors">
+          <div className="max-w-3xl mx-auto flex flex-col gap-3">
+            
+            <form
+              onSubmit={handleSubmit}
+              className="relative flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1.5 focus-within:border-brand-primary dark:focus-within:border-brand-primary/80 focus-within:ring-1 focus-within:ring-brand-primary/40 shadow-sm transition-all duration-200"
+            >
+              {hasRecognition && (
+                <button
+                  type="button"
+                  onClick={toggleListen}
+                  className={`p-2.5 rounded-xl transition-all duration-200 ${
+                    isListening
+                      ? 'bg-red-500/10 text-red-500 dark:bg-red-500/20'
+                      : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                  title={isListening ? "Stop voice listening" : "Start speech recording"}
+                >
+                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+              )}
+
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={isListening ? "Listening... speak now" : "Message Jarvis..."}
+                className="flex-1 bg-transparent border-none outline-none px-3.5 py-3 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm font-sans"
+                disabled={isTyping || isListening}
+              />
+
+              <button
+                type="submit"
+                disabled={!input.trim() || isTyping || isListening}
+                className="p-2.5 bg-brand-primary text-white hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-slate-800/40 dark:disabled:text-slate-600 rounded-xl transition-all duration-200"
+                title="Send command"
+              >
+                <ArrowUp className="w-5 h-5" />
+              </button>
+            </form>
+
+            <div className="text-center text-[10px] text-slate-400 dark:text-slate-500 tracking-wide select-none uppercase font-semibold">
+              Jarvis &bull; Powered by advanced AI model
+            </div>
           </div>
         </div>
+
       </div>
+
+      {/* Settings Modal */}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setSettingsOpen(false)}
+            className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200"
+          />
+          
+          {/* Modal Panel */}
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-10 overflow-hidden transition-all">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700/60">
+              <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100 font-sans">Settings</h3>
+              <button 
+                onClick={() => setSettingsOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div className="p-6 space-y-6">
+              
+              {/* Theme Preference */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-sans">Theme Preference</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-sans">Toggle between light and dark visual themes</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors text-slate-600 dark:text-slate-300 font-sans"
+                >
+                  {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                  <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+                </button>
+              </div>
+              
+              {/* Clear Chat History */}
+              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700/60 pt-6">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-sans">Clear Chat History</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-sans">Permanently delete all conversations from history</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearAllChats}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 rounded-xl transition-colors font-sans"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear All</span>
+                </button>
+              </div>
+              
+              {/* About Jarvis */}
+              <div className="border-t border-slate-100 dark:border-slate-700/60 pt-6">
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 font-sans">About</h4>
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs space-y-1 text-slate-500 dark:text-slate-400 font-sans">
+                  <div className="font-semibold text-slate-700 dark:text-slate-300">Jarvis AI Chatbot</div>
+                  <div>Version 1.0</div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 font-mono">© 2026 Jarvis. All rights reserved.</div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
 export default App;

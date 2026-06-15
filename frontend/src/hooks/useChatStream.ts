@@ -52,6 +52,7 @@ export const useChatStream = () => {
 
   return {
     messages,
+    setMessages,
     sendMessage,
     isTyping
   };
