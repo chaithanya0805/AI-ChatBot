@@ -1,7 +1,58 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Modern Web Speech API interfaces
 const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+// Helper function to clean markdown formatting before Speech Synthesis speaks the text
+const cleanMarkdown = (markdown: string): string => {
+  if (!markdown) return '';
+
+  // Remove code blocks (fenced code)
+  let text = markdown.replace(/```[a-zA-Z0-9+#-]*\n?/g, '');
+
+  // Remove inline code backticks
+  text = text.replace(/`/g, '');
+
+  // Remove HTML tags
+  text = text.replace(/<[^>]*>/g, '');
+
+  // Handle markdown links: [text](url) -> text
+  text = text.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+  // Handle images: ![alt](url) -> alt
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+  // Remove headings markers at the start of lines: #, ##, etc.
+  text = text.replace(/^#+\s+/gm, '');
+
+  // Remove blockquote characters at the start of lines: >
+  text = text.replace(/^>\s+/gm, '');
+
+  // Remove bullet points / list markers: -, *, + at the start of lines
+  text = text.replace(/^[ \t]*[-*+]\s+/gm, '');
+
+  // Remove bold and italic markers: **, *, __, _ without crossing lines
+  text = text.replace(/\*\*([^\*\n]+)\*\*/g, '$1');
+  text = text.replace(/\*([^\*\n]+)\*/g, '$1');
+  text = text.replace(/__([^_\n]+)__/g, '$1');
+  text = text.replace(/_([^_\n]+)_/g, '$1');
+
+  // Process line by line to handle punctuation, extra whitespace, and line breaks
+  const lines = text.split('\n');
+  const processedLines = lines
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      // Append period if the line doesn't end with standard sentence-ending punctuation or pauses
+      if (!/[.!?,;:?]$/.test(line)) {
+        return line + '.';
+      }
+      return line;
+    });
+
+  // Join lines with a space and clean up any multiple spaces
+  return processedLines.join(' ').replace(/\s+/g, ' ').trim();
+};
 
 export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   const [isListening, setIsListening] = useState(false);
@@ -9,15 +60,22 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   const [isMuted, setIsMuted] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   
-  // Initialize speech recognition
-  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-  
-  if (recognition) {
-    recognition.continuous = false;
-    recognition.interimResults = false;
+  const recognitionRef = useRef<any>(null);
+  const silenceTimeoutRef = useRef<any>(null);
+  const onSpeechResultRef = useRef(onSpeechResult);
+
+  // Update ref to avoid stale closures in event handlers
+  onSpeechResultRef.current = onSpeechResult;
+
+  if (!recognitionRef.current && SpeechRecognition) {
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
     // Using en-IN handles Indian accent English and code-switched Telugu words better natively
-    recognition.lang = 'en-IN';
+    rec.lang = 'en-IN';
+    recognitionRef.current = rec;
   }
+  const recognition = recognitionRef.current;
 
   useEffect(() => {
     // Load voices robustly
@@ -39,9 +97,12 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
 
     window.speechSynthesis.cancel(); // Stop any ongoing speech
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const cleanedText = cleanMarkdown(text);
+    if (!cleanedText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
     
-    // Find the best available male voice that sounds natural for Indian English / Telugu mix.
+    // Find the best available male voice that sounds natural for Indian English.
     // We prioritize premium voices if available in the browser natively.
     const bestVoice = 
       voices.find(v => v.name.includes('Google UK English Male')) ||
@@ -79,27 +140,51 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       setIsListening(true);
       
       recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        onSpeechResult(transcript);
-        setIsListening(false);
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+        }
+
+        silenceTimeoutRef.current = setTimeout(() => {
+          if (transcript.trim()) {
+            onSpeechResultRef.current(transcript.trim());
+          }
+          recognition.stop();
+        }, 1500); // Wait 1.5 seconds after user stops speaking to send the query
       };
 
       recognition.onerror = () => {
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
+        }
         setIsListening(false);
       };
 
       recognition.onend = () => {
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
+        }
         setIsListening(false);
       };
     } catch (e) {
       console.error("Speech recognition error:", e);
       setIsListening(false);
     }
-  }, [recognition, onSpeechResult]);
+  }, [recognition]);
 
   const stopListening = useCallback(() => {
     if (recognition) {
       recognition.stop();
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
       setIsListening(false);
     }
   }, [recognition]);

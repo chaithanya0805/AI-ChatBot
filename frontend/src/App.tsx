@@ -49,18 +49,33 @@ function App() {
     return (localStorage.getItem('theme') as 'light' | 'dark') || 'dark';
   });
 
+  const [dbError, setDbError] = useState<string | null>(null);
+
   const isSwitchingChat = useRef(false);
 
   const handleClearAllChats = () => {
-    localStorage.removeItem('jarvis_chats');
-    setChats([]);
-    setMessages([]);
-    setActiveChatId(null);
-    setSettingsOpen(false);
-    
-    setTimeout(() => {
-      handleNewChat();
-    }, 0);
+    isSwitchingChat.current = true;
+    fetch('http://localhost:8083/api/chats', {
+      method: 'DELETE'
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('Database is currently unavailable.');
+      }
+      setChats([]);
+      setMessages([]);
+      setActiveChatId(null);
+      setSettingsOpen(false);
+      setDbError(null);
+      setTimeout(() => {
+        handleNewChat();
+      }, 0);
+    })
+    .catch(err => {
+      console.error("Error clearing chats:", err);
+      setDbError('Database is currently unavailable. Chat history could not be cleared.');
+      isSwitchingChat.current = false;
+    });
   };
 
   // Sync theme to root class list
@@ -73,13 +88,19 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Load chat sessions from local storage
+  // Load chat sessions from MySQL database
   useEffect(() => {
-    const savedChats = localStorage.getItem('jarvis_chats');
-    if (savedChats) {
-      try {
-        const parsed = JSON.parse(savedChats) as ChatSession[];
+    fetch('http://localhost:8083/api/chats')
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Database is currently unavailable.');
+        }
+        return res.json();
+      })
+      .then(data => {
+        const parsed = data as ChatSession[];
         setChats(parsed);
+        setDbError(null);
         if (parsed.length > 0) {
           isSwitchingChat.current = true;
           setActiveChatId(parsed[0].id);
@@ -88,16 +109,24 @@ function App() {
             isSwitchingChat.current = false;
           }, 50);
         } else {
-          // Initialize first default chat if empty
           handleNewChat();
         }
-      } catch (e) {
-        console.error("Error loading chat history:", e);
-        handleNewChat();
-      }
-    } else {
-      handleNewChat();
-    }
+      })
+      .catch(err => {
+        console.error("Error loading chat history:", err);
+        setDbError('Database is currently unavailable. Chat history could not be loaded.');
+        // Fallback to empty session locally so user can still try to chat
+        const fallbackId = crypto.randomUUID();
+        const fallbackChat: ChatSession = {
+          id: fallbackId,
+          title: 'New Chat',
+          messages: [],
+          timestamp: Date.now()
+        };
+        setChats([fallbackChat]);
+        setActiveChatId(fallbackId);
+        setMessages([]);
+      });
   }, []);
 
   // Save changes to current chat messages
@@ -110,56 +139,99 @@ function App() {
     const messagesChanged = JSON.stringify(currentChat.messages) !== JSON.stringify(messages);
 
     if (messagesChanged) {
-      setChats(prev => {
-        const updated = prev.map(c => {
-          if (c.id === activeChatId) {
-            let newTitle = c.title;
-            // Generate a readable title from the first user message if it's currently default
-            if (c.title === 'New Chat' && messages.length > 0) {
-              const firstUserMsg = messages.find(m => m.role === 'user');
-              if (firstUserMsg) {
-                newTitle = firstUserMsg.content.slice(0, 26) + (firstUserMsg.content.length > 26 ? '...' : '');
-              }
-            }
-            return {
-              ...c,
-              title: newTitle,
-              messages: messages,
-              timestamp: Date.now()
-            };
-          }
-          return c;
-        });
-        localStorage.setItem('jarvis_chats', JSON.stringify(updated));
-        return updated;
+      let newTitle = currentChat.title;
+      // Generate a readable title from the first user message if it's currently default
+      if (currentChat.title === 'New Chat' && messages.length > 0) {
+        const firstUserMsg = messages.find(m => m.role === 'user');
+        if (firstUserMsg) {
+          newTitle = firstUserMsg.content.slice(0, 26) + (firstUserMsg.content.length > 26 ? '...' : '');
+        }
+      }
+
+      const updatedChat: ChatSession = {
+        ...currentChat,
+        title: newTitle,
+        messages: messages,
+        timestamp: Date.now()
+      };
+
+      fetch('http://localhost:8083/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedChat)
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Database is currently unavailable.');
+        }
+        return res.json();
+      })
+     .then((savedChat: ChatSession) => {
+    setChats(prev =>
+        prev.map(c =>
+            c.id === activeChatId ? savedChat : c
+        )
+    );
+
+    setActiveChatId(savedChat.id);
+
+    setDbError(null);
+})
+      .catch(err => {
+        console.error("Error saving chat session to DB:", err);
+        setDbError('Database is currently unavailable. Chat session could not be saved.');
+        // Fallback local update to keep UI in sync
+        setChats(prev => prev.map(c => c.id === activeChatId ? updatedChat : c));
       });
     }
   }, [messages, activeChatId, chats]);
 
   // Start a new chat session
-  const handleNewChat = () => {
-    isSwitchingChat.current = true;
-    const newId = crypto.randomUUID();
-    const newChat: ChatSession = {
-      id: newId,
-      title: 'New Chat',
-      messages: [],
-      timestamp: Date.now()
-    };
-    
-    setChats(prev => {
-      const updated = [newChat, ...prev];
-      localStorage.setItem('jarvis_chats', JSON.stringify(updated));
-      return updated;
-    });
-    setActiveChatId(newId);
+ const handleNewChat = () => {
+  isSwitchingChat.current = true;
+
+  const tempChat: ChatSession = {
+    id: crypto.randomUUID(),
+    title: "New Chat",
+    messages: [],
+    timestamp: Date.now()
+  };
+
+  fetch("http://localhost:8083/api/chats", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(tempChat)
+  })
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error("Database Error");
+      }
+      return res.json();
+    })
+  .then((savedChat: ChatSession) => {
+
+    setChats(prev => [savedChat, ...prev]);
+
+    setActiveChatId(savedChat.id);
+
     setMessages([]);
+
     setSidebarOpen(false);
 
-    setTimeout(() => {
-      isSwitchingChat.current = false;
-    }, 50);
-  };
+    setDbError(null);
+
+    isSwitchingChat.current = false;
+})
+    .catch((err) => {
+      console.error(err);
+
+      setDbError(
+        "Database is currently unavailable. Chat session could not be saved."
+      );
+    });
+};
 
   // Switch to an existing chat session
   const handleSelectChat = (chatId: string) => {
@@ -179,29 +251,40 @@ function App() {
   // Delete an existing chat session
   const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    
-    setChats(prev => {
-      const updated = prev.filter(c => c.id !== chatId);
-      localStorage.setItem('jarvis_chats', JSON.stringify(updated));
-      
-      if (activeChatId === chatId) {
-        if (updated.length > 0) {
-          setTimeout(() => {
-            handleSelectChat(updated[0].id);
-          }, 0);
-        } else {
-          setTimeout(() => {
-            handleNewChat();
-          }, 0);
-        }
+
+    fetch(`http://localhost:8083/api/chats/${chatId}`, {
+      method: 'DELETE'
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('Database is currently unavailable.');
       }
-      return updated;
+      setChats(prev => {
+        const updated = prev.filter(c => c.id !== chatId);
+        if (activeChatId === chatId) {
+          if (updated.length > 0) {
+            setTimeout(() => {
+              handleSelectChat(updated[0].id);
+            }, 0);
+          } else {
+            setTimeout(() => {
+              handleNewChat();
+            }, 0);
+          }
+        }
+        return updated;
+      });
+      setDbError(null);
+    })
+    .catch(err => {
+      console.error("Error deleting chat:", err);
+      setDbError('Database is currently unavailable. Chat session could not be deleted.');
     });
   };
 
   // Handle voice commands: automatically send when speech is recognized
   const handleSpeechResult = (transcript: string) => {
-    setInput(transcript);
+    setInput("");
     setLastInputMode('voice');
     sendMessage(transcript);
   };
@@ -413,6 +496,13 @@ function App() {
             </button>
           </div>
         </header>
+
+        {dbError && (
+          <div className="bg-red-500 text-white text-xs py-2 px-6 flex justify-between items-center z-20">
+            <span>{dbError}</span>
+            <button onClick={() => setDbError(null)} className="hover:text-red-200 font-bold ml-4">✕</button>
+          </div>
+        )}
 
         {/* Messaging Box */}
         <div className="flex-1 overflow-hidden relative">

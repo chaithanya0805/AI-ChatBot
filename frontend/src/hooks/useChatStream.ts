@@ -33,11 +33,16 @@ export const useChatStream = () => {
       });
 
       const data = await response.text();
+      let content = data;
+
+      if (response.status === 429 || data.includes('429 Too Many Requests')) {
+        content = 'Too many requests. Please try again after some time.';
+      }
 
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: data
+        content
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
