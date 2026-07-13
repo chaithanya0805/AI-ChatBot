@@ -12,7 +12,7 @@ interface ChatBubbleProps {
 
 // Minimal brand symbol for the assistant avatar
 const AssistantAvatar = () => (
-  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-primary to-brand-secondary text-white font-bold text-sm flex items-center justify-center shadow-sm select-none">
+  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-extrabold text-sm flex items-center justify-center shadow-sm select-none">
     J
   </div>
 );
@@ -38,7 +38,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         {/* Avatar */}
         <div className="flex-shrink-0">
           {isUser ? (
-            <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-[#1E1E1E] border border-slate-350 dark:border-[#2A2A2A] text-slate-500 dark:text-[#F5F5F5] flex items-center justify-center shadow-xs">
               <User className="w-4 h-4" />
             </div>
           ) : (
@@ -49,32 +49,32 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         {/* Bubble */}
         <div
           className={`
-            px-5 py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-200
+            px-5 py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-250
             ${isUser 
-              ? 'bg-blue-600 text-white rounded-2xl rounded-tr-xs font-medium' 
-              : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl rounded-tl-xs'
+              ? 'bg-slate-100 dark:bg-[#181818] text-slate-800 dark:text-[#F5F5F5] border border-slate-200/60 dark:border-[#2A2A2A] rounded-2xl rounded-tr-xs font-medium' 
+              : 'bg-white dark:bg-[#0F0F0F] text-slate-800 dark:text-[#F5F5F5] border border-slate-200/60 dark:border-[#2A2A2A] rounded-2xl rounded-tl-xs'
             }
           `}
         >
-          <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2.5 prose-pre:bg-slate-50 dark:prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-slate-200/80 dark:prose-pre:border-slate-800/60 prose-pre:shadow-xs prose-pre:rounded-xl prose-code:text-brand-primary dark:prose-code:text-brand-secondary prose-code:font-mono font-sans tracking-normal">
+          <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2.5 prose-pre:bg-slate-50 dark:prose-pre:bg-[#151515] prose-pre:border prose-pre:border-slate-200/80 dark:prose-pre:border-[#2A2A2A] prose-pre:shadow-xs prose-pre:rounded-xl prose-code:text-[#D4AF6A] dark:prose-code:text-[#D4AF6A] prose-code:font-mono font-sans tracking-normal">
             {content ? (
               <ReactMarkdown>{content}</ReactMarkdown>
             ) : isStreaming ? (
               <div className="flex flex-col gap-1 py-0.5 px-0.5">
-                <span className="text-xs text-slate-400 dark:text-slate-500 mb-1.5 select-none font-medium animate-pulse">
+                <span className="text-xs text-slate-450 dark:text-[#9A9A9A] mb-1.5 select-none font-medium animate-pulse">
                   Thinking...
                 </span>
                 <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-typing" style={{ animationDelay: '0s' }}></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-typing" style={{ animationDelay: '0.2s' }}></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-typing" style={{ animationDelay: '0.4s' }}></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-[#D4AF6A] animate-typing" style={{ animationDelay: '0s' }}></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-[#D4AF6A] animate-typing" style={{ animationDelay: '0.2s' }}></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-[#D4AF6A] animate-typing" style={{ animationDelay: '0.4s' }}></span>
                 </div>
               </div>
             ) : null}
             
             {/* Blinking cursor at the end while streaming */}
             {isStreaming && content && (
-               <span className="inline-block w-1.5 h-3.5 bg-brand-primary dark:bg-brand-secondary ml-1 animate-pulse align-middle"></span>
+               <span className="inline-block w-1.5 h-3.5 bg-brand-primary dark:bg-[#D4AF6A] ml-1 animate-pulse align-middle"></span>
             )}
           </div>
         </div>

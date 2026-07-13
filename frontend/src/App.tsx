@@ -35,7 +35,7 @@ interface ChatSession {
 
 // Minimal modern logo lettermark
 const Logo = () => (
-  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-xs select-none">
+  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-tr from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-extrabold text-sm shadow-xs select-none">
     J
   </div>
 );
@@ -690,24 +690,24 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50 font-sans overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-[#090909] dark:text-[#F5F5F5] font-sans overflow-hidden transition-colors duration-300">
       
       {/* Left Sidebar Navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 dark:bg-slate-900 border-r border-slate-200/50 dark:border-slate-800/80
+        fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 dark:bg-[#0F0F0F] border-r border-slate-200/50 dark:border-[#2A2A2A]
         flex flex-col transform transition-transform duration-300 ease-in-out
         md:static md:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Sidebar Header */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/50 dark:border-slate-800/60">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/50 dark:border-[#2A2A2A]">
           <div className="flex items-center gap-2.5">
             <Logo />
-            <span className="font-bold text-base tracking-tight text-slate-800 dark:text-slate-100 select-none">Jarvis</span>
+            <span className="font-bold text-base tracking-tight text-slate-800 dark:text-[#F5F5F5] select-none">Jarvis</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg transition-colors"
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-655 dark:hover:text-slate-250 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -717,7 +717,7 @@ function App() {
         <div className="p-3">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs active:scale-[0.98] cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Chat</span>
@@ -742,19 +742,22 @@ function App() {
                 <div
                   key={chat.id}
                   onClick={() => handleSelectChat(chat.id)}
-                  className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 text-xs border ${
+                  className={`group relative flex items-center justify-between pl-4.5 pr-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 text-xs border ${
                     activeChatId === chat.id
-                      ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-slate-200/50 dark:border-slate-700/50 shadow-xs'
-                      : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/40 dark:hover:text-slate-200 border-transparent'
+                      ? 'bg-white dark:bg-[#181818] text-slate-800 dark:text-[#F5F5F5] font-semibold border-slate-200/50 dark:border-[#2A2A2A] shadow-xs'
+                      : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800 dark:text-[#9A9A9A] dark:hover:bg-[#1E1E1E] dark:hover:text-[#F5F5F5] border-transparent'
                   }`}
                 >
+                  {activeChatId === chat.id && (
+                    <div className="absolute left-0 top-[25%] bottom-[25%] w-[3px] bg-[#D4AF6A] rounded-r-md" />
+                  )}
                   <div className="flex items-center gap-2 overflow-hidden">
-                    <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-70 text-blue-600 dark:text-blue-500" />
+                    <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-75 text-[#D4AF6A]" />
                     <span className="truncate">{chat.title}</span>
                   </div>
                   <button
                     onClick={(e) => handleDeleteChat(e, chat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer"
                     title="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -778,7 +781,7 @@ function App() {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         
         {/* Top Navbar */}
-        <header className="h-[72px] w-full flex items-center justify-between px-8 bg-white/75 dark:bg-[#0F172A]/75 border-b border-slate-200/50 dark:border-slate-800/70 backdrop-blur-xl z-30 transition-colors duration-300">
+        <header className="h-[72px] w-full flex items-center justify-between px-8 bg-white/75 dark:bg-[#090909]/75 border-b border-slate-200/50 dark:border-[#2A2A2A] backdrop-blur-xl z-30 transition-colors duration-300">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -787,7 +790,7 @@ function App() {
               <Menu className="w-4 h-4" />
             </button>
             {messages.length > 0 && (
-              <h1 className="text-xl font-semibold text-slate-850 dark:text-slate-200 select-none tracking-tight animate-fade-in">
+              <h1 className="text-xl font-semibold text-slate-855 dark:text-[#F5F5F5] select-none tracking-tight animate-fade-in">
                 {chats.find(c => c.id === activeChatId)?.title}
               </h1>
             )}
@@ -798,7 +801,7 @@ function App() {
             
             {/* Audio Synthesis Info & Controls */}
             {(lastInputMode === 'voice' || isSpeaking || isListening) && (
-              <div className="flex items-center gap-3.5 mr-1 border-r border-slate-200/50 dark:border-slate-800/80 pr-4">
+              <div className="flex items-center gap-3.5 mr-1 border-r border-slate-200/50 dark:border-[#2A2A2A] pr-4">
                 {isSpeaking && (
                   <button
                     onClick={stopSpeaking}
@@ -832,7 +835,7 @@ function App() {
                 )}
                 <button
                   onClick={toggleMute}
-                  className="w-10 h-10 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  className="w-10 h-10 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-[#D4AF6A] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-colors cursor-pointer"
                   title={isMuted ? "Unmute speech feedback" : "Mute speech feedback"}
                 >
                   {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -843,7 +846,7 @@ function App() {
             {/* Light/Dark mode toggler */}
             <button
               onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-[#9A9A9A] dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
             >
               {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
@@ -852,7 +855,7 @@ function App() {
             {/* Optional Settings button */}
             <button 
               onClick={() => setSettingsOpen(true)}
-              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-[#9A9A9A] dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title="Settings"
             >
               <Settings className="w-4 h-4" />
@@ -863,7 +866,7 @@ function App() {
               <div className="relative ml-1" ref={profileMenuRef}>
                 <button
                   onClick={() => setProfileMenuOpen(prev => !prev)}
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs transition-all hover:scale-105 active:scale-95 shadow-xs border border-white/20 select-none cursor-pointer hover:ring-4 hover:ring-blue-500/15"
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-bold text-xs transition-all hover:scale-105 active:scale-95 shadow-xs border border-white/20 select-none cursor-pointer hover:ring-4 hover:ring-[#D4AF6A]/15"
                   title={user.email}
                 >
                   {user.fullName ? user.fullName.substring(0, 2).toUpperCase() : user.email.substring(0, 2).toUpperCase()}
@@ -886,11 +889,10 @@ function App() {
                       }
                     `}</style>
                     <div 
-                      className="absolute right-0 mt-2.5 w-[280px] rounded-xl p-4 z-50 animate-profile-dropdown select-none"
+                      className="absolute right-0 mt-2.5 w-[280px] rounded-xl p-4 z-50 animate-profile-dropdown select-none border border-slate-200/50 dark:border-[#2A2A2A]"
                       style={{
-                        backgroundColor: theme === 'dark' ? '#161B26' : '#ffffff',
-                        border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
-                        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.25)',
+                        backgroundColor: theme === 'dark' ? '#0F0F0F' : '#ffffff',
+                        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
                         opacity: 1,
                         backdropFilter: 'none',
                         WebkitBackdropFilter: 'none',
@@ -901,11 +903,9 @@ function App() {
                     >
                       {/* Triangle pointer tip matching reference */}
                       <div 
-                        className="absolute right-4.5 -top-1 w-2 h-2 rotate-45"
+                        className="absolute right-4.5 -top-1.5 w-2.5 h-2.5 rotate-45 border-t border-l border-slate-200/50 dark:border-[#2A2A2A]"
                         style={{
-                          backgroundColor: theme === 'dark' ? '#161B26' : '#ffffff',
-                          borderTop: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
-                          borderLeft: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
+                          backgroundColor: theme === 'dark' ? '#0F0F0F' : '#ffffff',
                           opacity: 1,
                           backdropFilter: 'none',
                           WebkitBackdropFilter: 'none',
@@ -915,27 +915,27 @@ function App() {
                       />
 
                       <div className="flex items-center gap-3 py-1 px-0.5">
-                        <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs select-none">
+                        <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-bold text-xs select-none">
                           {user.fullName ? user.fullName.substring(0, 2).toUpperCase() : user.email.substring(0, 2).toUpperCase()}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-bold text-slate-800 dark:text-white truncate">
+                          <span className="text-sm font-bold text-slate-805 dark:text-[#F5F5F5] truncate">
                             {user.fullName || 'User Account'}
                           </span>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          <span className="text-[11px] text-slate-500 dark:text-[#9A9A9A] truncate mt-0.5">
                             {user.email}
                           </span>
                         </div>
                       </div>
                       
-                      <div className="h-px bg-slate-100 dark:bg-white/[0.06] my-3.5" />
+                      <div className="h-px bg-slate-100 dark:bg-[#2A2A2A] my-3.5" />
                       
                       <button
                         onClick={(e) => {
                           setProfileMenuOpen(false);
                           handleLogout();
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#ff7b7b] bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all duration-250 font-semibold cursor-pointer border border-transparent active:scale-[0.98]"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#ff7b7b] bg-slate-50 dark:bg-[#181818] hover:bg-slate-100 dark:hover:bg-[#1E1E1E] rounded-lg transition-all duration-250 font-semibold cursor-pointer border border-transparent active:scale-[0.98]"
                       >
                         <LogOut className="w-4 h-4 text-[#ff7b7b] flex-shrink-0" />
                         <span>Logout</span>
@@ -952,7 +952,7 @@ function App() {
                   setAuthModalStep('signin');
                   setAuthModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 h-10 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs rounded-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-blue-500/10 cursor-pointer ml-1"
+                className="flex items-center gap-1.5 h-10 px-5 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-[#D4AF6A]/10 cursor-pointer ml-1"
               >
                 Sign In
               </button>
@@ -966,18 +966,17 @@ function App() {
             <button onClick={() => setDbError(null)} className="hover:text-red-200 font-bold ml-4">✕</button>
           </div>
         )}
-
         {/* Messaging Box */}
-        <div className="flex-1 overflow-hidden relative bg-slate-50 dark:bg-[#0B1120]">
+        <div className="flex-1 overflow-hidden relative bg-slate-50 dark:bg-[#090909]">
           <ChatContainer messages={messages} isTyping={isTyping} />
         </div>
         {/* Input box section */}
-        <div className="p-4 md:p-6 border-t border-slate-200/50 dark:border-slate-800/60 bg-white dark:bg-[#0F172A] transition-colors">
+        <div className="p-4 md:p-6 border-t border-slate-200/50 dark:border-[#2A2A2A] bg-white dark:bg-[#0F0F0F] transition-colors">
           <div className="max-w-3xl mx-auto flex flex-col gap-3">
             
             <form
               onSubmit={handleSubmit}
-              className="relative flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-750/60 rounded-xl p-1.5 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/15 transition-all duration-200 shadow-xs"
+              className="relative flex items-center bg-slate-50 dark:bg-[#151515] border border-slate-200/60 dark:border-[#2A2A2A] rounded-xl p-1.5 focus-within:border-[#D4AF6A] focus-within:ring-2 focus-within:ring-[#D4AF6A]/10 transition-all duration-200 shadow-xs"
             >
               {hasRecognition && (
                 <button
@@ -986,7 +985,7 @@ function App() {
                   className={`p-2 rounded-lg transition-all duration-200 cursor-pointer ${
                     isListening
                       ? 'bg-red-500/10 text-red-500'
-                      : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                      : 'text-slate-400 hover:text-slate-655 dark:text-[#9A9A9A] dark:hover:text-[#D4AF6A] hover:bg-slate-100 dark:hover:bg-[#1E1E1E]'
                   }`}
                   title={isListening ? "Stop voice listening" : "Start speech recording"}
                 >
@@ -999,14 +998,14 @@ function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={isListening ? "Listening... speak now" : "Message Jarvis..."}
-                className="flex-1 bg-transparent border-none outline-none px-3 py-2 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm font-sans"
+                className="flex-1 bg-transparent border-none outline-none px-3 py-2 text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] text-sm font-sans"
                 disabled={isTyping || isListening}
               />
 
               <button
                 type="submit"
                 disabled={!input.trim() || isTyping || isListening}
-                className="p-1.5 w-8 h-8 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-slate-900/40 dark:disabled:text-slate-700 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center shadow-xs"
+                className="p-1.5 w-8 h-8 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-[#181818] dark:disabled:text-[#9A9A9A] rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center shadow-xs"
                 title="Send command"
               >
                 <ArrowUp className="w-4 h-4" />
@@ -1103,13 +1102,13 @@ function App() {
           />
 
           {/* Modal Panel */}
-          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-xl shadow-2xl z-10 overflow-hidden transition-all duration-200 p-6 flex flex-col items-center gap-5">
+          <div className="relative w-full max-w-md bg-white dark:bg-[#0F0F0F] border border-slate-200/50 dark:border-[#2A2A2A] rounded-[20px] shadow-2xl z-10 overflow-hidden transition-all duration-200 p-6 flex flex-col items-center gap-5">
             
             {/* Close Button */}
             {authModalStep !== 'loading' && (
               <button 
                 onClick={() => setAuthModalOpen(false)}
-                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 rounded-full transition-colors cursor-pointer"
+                className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-[#181818] border border-[#2A2A2A] hover:bg-[#1E1E1E] text-[#9A9A9A] hover:text-[#D4AF6A] transition-all duration-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1117,10 +1116,11 @@ function App() {
 
             {/* Logo */}
             <div className="flex flex-col items-center gap-2 text-center z-10">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-2xl shadow-sm select-none">
-                J
+              <div className="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-bold text-2xl shadow-sm select-none">
+                <div className="absolute inset-0 bg-[#D4AF6A]/20 rounded-xl blur-md" />
+                <span className="z-10">J</span>
               </div>
-              <h2 className="text-xl font-bold text-slate-850 dark:text-slate-100 tracking-tight mt-1.5">
+              <h2 className="text-xl font-bold text-slate-850 dark:text-[#F5F5F5] tracking-tight mt-1.5">
                 {authModalStep === 'signin' && 'Sign In to Jarvis'}
                 {authModalStep === 'signup' && 'Create Your Mainframe Account'}
                 {authModalStep === 'verify-signup' && 'Verify Your Email'}
@@ -1128,7 +1128,7 @@ function App() {
                 {authModalStep === 'reset-password' && 'Create New Password'}
                 {authModalStep === 'loading' && 'Authorizing'}
               </h2>
-              <p className="text-xs text-slate-450 dark:text-slate-500 font-medium">
+              <p className="text-xs text-slate-450 dark:text-[#CFCFCF] font-medium">
                 {authModalStep === 'signin' && 'Welcome back. Initialize system authentication.'}
                 {authModalStep === 'signup' && 'Activate secondary secure credentials.'}
                 {authModalStep === 'verify-signup' && `Enter the 6-digit code sent to ${email}.`}
@@ -1141,8 +1141,8 @@ function App() {
             <div className="w-full z-10">
               {authModalStep === 'loading' && (
                 <div className="flex flex-col items-center justify-center py-8 gap-4">
-                  <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-xs text-slate-450 dark:text-slate-500 animate-pulse uppercase tracking-wider font-semibold">
+                  <div className="w-10 h-10 border-4 border-[#D4AF6A] border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-xs text-slate-450 dark:text-[#9A9A9A] animate-pulse uppercase tracking-wider font-semibold">
                     Processing protocol...
                   </p>
                 </div>
@@ -1152,26 +1152,26 @@ function App() {
               {authModalStep === 'signin' && (
                 <form onSubmit={handleSignIn} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Email</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Email</label>
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email address"
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between items-center">
-                      <label className="text-xs font-semibold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Password</label>
+                      <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Password</label>
                       <button
                         type="button"
                         onClick={() => {
                           setAuthError(null);
                           setAuthModalStep('forgot-password');
                         }}
-                        className="text-xs text-blue-600 dark:text-blue-450 hover:underline font-semibold animate-fade-in cursor-pointer"
+                        className="text-xs text-[#D4AF6A] hover:underline font-semibold animate-fade-in cursor-pointer"
                       >
                         Forgot Password?
                       </button>
@@ -1183,12 +1183,12 @@ function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
                         onClick={() => setShowSignInPass(!showSignInPass)}
-                        className="absolute right-3 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-[#D4AF6A] transition-colors cursor-pointer"
                       >
                         {showSignInPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -1197,11 +1197,11 @@ function App() {
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
                   <button
                     type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs mt-2 cursor-pointer"
+                    className="w-full py-2 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:-translate-y-0.5 hover:shadow-md hover:shadow-[#D4AF6A]/10 active:scale-[0.98] transition-all duration-200 cursor-pointer mt-2"
                   >
                     Sign In
                   </button>
-                  <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-2 font-medium">
+                  <p className="text-xs text-center text-slate-455 dark:text-[#9A9A9A] mt-2 font-medium">
                     Don't have an account?{' '}
                     <button
                       type="button"
@@ -1209,7 +1209,7 @@ function App() {
                         setAuthError(null);
                         setAuthModalStep('signup');
                       }}
-                      className="text-blue-600 dark:text-blue-450 font-bold hover:underline cursor-pointer"
+                      className="text-[#D4AF6A] font-bold hover:underline cursor-pointer"
                     >
                       Sign Up
                     </button>
@@ -1221,29 +1221,29 @@ function App() {
               {authModalStep === 'signup' && (
                 <form onSubmit={handleSignUp} className="flex flex-col gap-3.5">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Full Name</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Full Name</label>
                     <input
                       type="text"
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Enter your full name"
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Email Address</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Email Address</label>
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email address"
-                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Password</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Password</label>
                     <div className="relative flex items-center">
                       <input
                         type={showSignUpPass ? "text" : "password"}
@@ -1251,19 +1251,19 @@ function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
-                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
                         onClick={() => setShowSignUpPass(!showSignUpPass)}
-                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-[#D4AF6A] transition-colors cursor-pointer"
                       >
                         {showSignUpPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Confirm Password</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Confirm Password</label>
                     <div className="relative flex items-center">
                       <input
                         type={showSignUpConfirmPass ? "text" : "password"}
@@ -1271,12 +1271,12 @@ function App() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Confirm your password"
-                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
                         onClick={() => setShowSignUpConfirmPass(!showSignUpConfirmPass)}
-                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-[#D4AF6A] transition-colors cursor-pointer"
                       >
                         {showSignUpConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -1285,11 +1285,11 @@ function App() {
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
                   <button
                     type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs mt-2 cursor-pointer"
+                    className="w-full py-2 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:-translate-y-0.5 hover:shadow-md hover:shadow-[#D4AF6A]/10 active:scale-[0.98] transition-all duration-200 cursor-pointer mt-2"
                   >
                     Create Account
                   </button>
-                  <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-2 font-medium">
+                  <p className="text-xs text-center text-slate-455 dark:text-[#9A9A9A] mt-2 font-medium">
                     Already have an account?{' '}
                     <button
                       type="button"
@@ -1297,7 +1297,7 @@ function App() {
                         setAuthError(null);
                         setAuthModalStep('signin');
                       }}
-                      className="text-blue-600 dark:text-blue-455 font-bold hover:underline cursor-pointer"
+                      className="text-[#D4AF6A] font-bold hover:underline cursor-pointer"
                     >
                       Sign In
                     </button>
@@ -1309,7 +1309,7 @@ function App() {
               {authModalStep === 'verify-signup' && (
                 <form onSubmit={handleVerifySignUp} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider text-center">Enter 6-Digit Code</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider text-center">Enter 6-Digit Code</label>
                     <input
                       type="text"
                       required
@@ -1318,13 +1318,13 @@ function App() {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
                       placeholder="Enter verification code"
-                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
                   <button
                     type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs cursor-pointer"
+                    className="w-full py-2 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:-translate-y-0.5 hover:shadow-md hover:shadow-[#D4AF6A]/10 active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   >
                     Verify Code
                   </button>
@@ -1335,7 +1335,7 @@ function App() {
                         setAuthError(null);
                         setAuthModalStep('signup');
                       }}
-                      className="text-slate-455 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 font-semibold cursor-pointer"
+                      className="text-[#9A9A9A] hover:text-slate-700 dark:hover:text-[#D4AF6A] font-semibold cursor-pointer"
                     >
                       Back to Sign Up
                     </button>
@@ -1343,7 +1343,7 @@ function App() {
                       type="button"
                       disabled={cooldown > 0}
                       onClick={() => handleSendOtpForSignup()}
-                      className="text-blue-600 dark:text-blue-450 hover:text-blue-700 disabled:text-slate-400 dark:disabled:text-slate-650 font-bold cursor-pointer"
+                      className="text-[#D4AF6A] hover:text-blue-750 disabled:text-slate-400 dark:disabled:text-slate-650 font-bold cursor-pointer"
                     >
                       {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
                     </button>
@@ -1355,20 +1355,20 @@ function App() {
               {authModalStep === 'forgot-password' && (
                 <form onSubmit={handleForgotPasswordSubmit} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Email Address</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Email Address</label>
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your registered email"
-                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
                   <button
                     type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs cursor-pointer"
+                    className="w-full py-2 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:-translate-y-0.5 hover:shadow-md hover:shadow-[#D4AF6A]/10 active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   >
                     Send Recovery Code
                   </button>
@@ -1378,7 +1378,7 @@ function App() {
                       setAuthError(null);
                       setAuthModalStep('signin');
                     }}
-                    className="w-full text-center text-xs text-slate-455 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-350 font-semibold mt-1 transition-colors cursor-pointer"
+                    className="w-full text-center text-xs text-slate-455 hover:text-slate-700 dark:text-[#9A9A9A] dark:hover:text-[#D4AF6A] font-semibold mt-1 transition-colors cursor-pointer"
                   >
                     Back to Sign In
                   </button>
@@ -1389,7 +1389,7 @@ function App() {
               {authModalStep === 'reset-password' && (
                 <form onSubmit={handleResetPasswordSubmit} className="flex flex-col gap-3.5">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider text-center">6-Digit Recovery Code</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider text-center">6-Digit Recovery Code</label>
                     <input
                       type="text"
                       required
@@ -1398,11 +1398,11 @@ function App() {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
                       placeholder="Enter verification code"
-                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-850 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">New Password</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">New Password</label>
                     <div className="relative flex items-center">
                       <input
                         type={showResetPass ? "text" : "password"}
@@ -1410,19 +1410,19 @@ function App() {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Enter new password"
-                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
                         onClick={() => setShowResetPass(!showResetPass)}
-                        className="absolute right-3 text-slate-455 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        className="absolute right-3 text-slate-455 hover:text-slate-655 dark:hover:text-[#D4AF6A] transition-colors cursor-pointer"
                       >
                         {showResetPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Confirm New Password</label>
+                    <label className="text-xs font-semibold text-slate-455 dark:text-[#9A9A9A] uppercase tracking-wider">Confirm New Password</label>
                     <div className="relative flex items-center">
                       <input
                         type={showResetConfirmPass ? "text" : "password"}
@@ -1430,12 +1430,12 @@ function App() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Confirm new password"
-                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
                         onClick={() => setShowResetConfirmPass(!showResetConfirmPass)}
-                        className="absolute right-3 text-slate-455 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        className="absolute right-3 text-slate-455 hover:text-slate-655 dark:hover:text-[#D4AF6A] transition-colors cursor-pointer"
                       >
                         {showResetConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -1444,7 +1444,7 @@ function App() {
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
                   <button
                     type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs mt-2 cursor-pointer"
+                    className="w-full py-2 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:-translate-y-0.5 hover:shadow-md hover:shadow-[#D4AF6A]/10 active:scale-[0.98] transition-all duration-200 cursor-pointer mt-2"
                   >
                     Reset Password
                   </button>
@@ -1455,7 +1455,7 @@ function App() {
                         setAuthError(null);
                         setAuthModalStep('forgot-password');
                       }}
-                      className="text-slate-455 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 font-semibold transition-colors cursor-pointer"
+                      className="text-slate-455 hover:text-slate-700 dark:text-[#9A9A9A] dark:hover:text-[#D4AF6A] font-semibold transition-colors cursor-pointer"
                     >
                       Back
                     </button>
@@ -1463,7 +1463,7 @@ function App() {
                       type="button"
                       disabled={cooldown > 0}
                       onClick={() => handleSendOtpForForgotPassword()}
-                      className="text-blue-600 dark:text-blue-450 hover:text-blue-700 disabled:text-slate-400 dark:disabled:text-slate-650 font-bold cursor-pointer"
+                      className="text-[#D4AF6A] hover:text-blue-750 disabled:text-slate-400 dark:disabled:text-slate-650 font-bold cursor-pointer"
                     >
                       {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
                     </button>
