@@ -46,7 +46,7 @@ function App() {
   const [lastInputMode, setLastInputMode] = useState<InputMode>('text');
 
   // Auth states
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<{ email: string; fullName: string; role: string } | null>(null);
 
   // Auth modal states
@@ -102,6 +102,7 @@ function App() {
       .then(userData => {
         setUser(userData);
         setToken(storedToken);
+        localStorage.removeItem('guest_chats');
       })
       .catch(err => {
         console.error("Auto-login failed:", err);
@@ -468,6 +469,10 @@ function App() {
       if (!res.ok) {
         throw new Error(data.error || 'Authentication failed.');
       }
+      localStorage.removeItem('guest_chats');
+      setChats([]);
+      setMessages([]);
+      setActiveChatId(null);
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setUser({ email: data.email, fullName: data.fullName, role: data.role });
@@ -523,6 +528,10 @@ function App() {
       if (!res.ok) {
         throw new Error(data.error || 'Verification failed.');
       }
+      localStorage.removeItem('guest_chats');
+      setChats([]);
+      setMessages([]);
+      setActiveChatId(null);
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setUser({ email: data.email, fullName: data.fullName, role: data.role });
@@ -630,6 +639,7 @@ function App() {
       }).catch(err => console.error(err));
     }
     localStorage.removeItem('token');
+    localStorage.removeItem('guest_chats');
     setToken(null);
     setUser(null);
     setChats([]);
