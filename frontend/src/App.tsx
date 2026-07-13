@@ -16,10 +16,15 @@ import {
   Volume2, 
   VolumeX, 
   Square,
-  ArrowUp
+  ArrowUp,
+  User,
+  LogOut,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 type InputMode = 'text' | 'voice';
+type AuthModalStep = 'signin' | 'signup' | 'verify-signup' | 'forgot-password' | 'reset-password' | 'loading';
 
 interface ChatSession {
   id: string;
@@ -30,7 +35,7 @@ interface ChatSession {
 
 // Minimal modern logo lettermark
 const Logo = () => (
-  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-primary to-brand-secondary text-white font-bold text-base shadow-sm select-none">
+  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-xs select-none">
     J
   </div>
 );
@@ -39,6 +44,33 @@ function App() {
   const { messages, setMessages, sendMessage, isTyping } = useChatStream();
   const [input, setInput] = useState('');
   const [lastInputMode, setLastInputMode] = useState<InputMode>('text');
+
+  // Auth states
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<{ email: string; fullName: string; role: string } | null>(null);
+
+  // Auth modal states
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalStep, setAuthModalStep] = useState<AuthModalStep>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Password visibility states
+  const [showSignInPass, setShowSignInPass] = useState(false);
+  const [showSignUpPass, setShowSignUpPass] = useState(false);
+  const [showSignUpConfirmPass, setShowSignUpConfirmPass] = useState(false);
+  const [showResetPass, setShowResetPass] = useState(false);
+  const [showResetConfirmPass, setShowResetConfirmPass] = useState(false);
+
+  // Dropdown states
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Multi-chat states
   const [chats, setChats] = useState<ChatSession[]>([]);
@@ -50,33 +82,65 @@ function App() {
   });
 
   const [dbError, setDbError] = useState<string | null>(null);
-
   const isSwitchingChat = useRef(false);
 
-  const handleClearAllChats = () => {
-    isSwitchingChat.current = true;
-    fetch('http://localhost:8083/api/chats', {
-      method: 'DELETE'
-    })
-    .then(res => {
-      if (!res.ok) {
-        throw new Error('Database is currently unavailable.');
+  // 1. Auto-login on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      fetch('http://localhost:8083/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${storedToken}`
+        }
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Token verification failed');
+        }
+        return res.json();
+      })
+      .then(userData => {
+        setUser(userData);
+        setToken(storedToken);
+      })
+      .catch(err => {
+        console.error("Auto-login failed:", err);
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
+      });
+    }
+  }, []);
+
+  // 2. Cooldown timer countdown
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
+
+  // 3. Dropdown outside click & Escape listener
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
       }
-      setChats([]);
-      setMessages([]);
-      setActiveChatId(null);
-      setSettingsOpen(false);
-      setDbError(null);
-      setTimeout(() => {
-        handleNewChat();
-      }, 0);
-    })
-    .catch(err => {
-      console.error("Error clearing chats:", err);
-      setDbError('Database is currently unavailable. Chat history could not be cleared.');
-      isSwitchingChat.current = false;
-    });
-  };
+    };
+
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, []);
 
   // Sync theme to root class list
   useEffect(() => {
@@ -88,9 +152,39 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Load chat sessions from MySQL database
+  // Clear modal input values on open, close, or step transition
   useEffect(() => {
-    fetch('http://localhost:8083/api/chats')
+    if (!authModalOpen) {
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setFullName('');
+      setOtpCode('');
+      setNewPassword('');
+      setAuthError(null);
+    } else {
+      // Clear credentials when modal opens initially on signin/signup/forgot-password,
+      // but preserve context data (like email) if transitioning to intermediate pages.
+      if (authModalStep === 'signin' || authModalStep === 'signup' || authModalStep === 'forgot-password') {
+        setEmail('');
+        setFullName('');
+      }
+      setPassword('');
+      setConfirmPassword('');
+      setOtpCode('');
+      setNewPassword('');
+    }
+  }, [authModalOpen, authModalStep]);
+
+  // Load chat sessions based on Auth Token or Guest Storage
+  useEffect(() => {
+    if (token) {
+      // Cloud mode load
+      fetch('http://localhost:8083/api/chats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       .then(res => {
         if (!res.ok) {
           throw new Error('Database is currently unavailable.');
@@ -109,25 +203,39 @@ function App() {
             isSwitchingChat.current = false;
           }, 50);
         } else {
-          handleNewChat();
+          handleNewChatForToken(token);
         }
       })
       .catch(err => {
         console.error("Error loading chat history:", err);
         setDbError('Database is currently unavailable. Chat history could not be loaded.');
-        // Fallback to empty session locally so user can still try to chat
-        const fallbackId = crypto.randomUUID();
-        const fallbackChat: ChatSession = {
-          id: fallbackId,
-          title: 'New Chat',
-          messages: [],
-          timestamp: Date.now()
-        };
-        setChats([fallbackChat]);
-        setActiveChatId(fallbackId);
-        setMessages([]);
       });
-  }, []);
+    } else {
+      // Guest mode load
+      const stored = localStorage.getItem('guest_chats');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as ChatSession[];
+          setChats(parsed);
+          setDbError(null);
+          if (parsed.length > 0) {
+            isSwitchingChat.current = true;
+            setActiveChatId(parsed[0].id);
+            setMessages(parsed[0].messages);
+            setTimeout(() => {
+              isSwitchingChat.current = false;
+            }, 50);
+          } else {
+            handleNewChatForToken(null);
+          }
+        } catch (e) {
+          handleNewChatForToken(null);
+        }
+      } else {
+        handleNewChatForToken(null);
+      }
+    }
+  }, [token]);
 
   // Save changes to current chat messages
   useEffect(() => {
@@ -155,83 +263,91 @@ function App() {
         timestamp: Date.now()
       };
 
-      fetch('http://localhost:8083/api/chats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedChat)
+      if (token) {
+        fetch('http://localhost:8083/api/chats', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(updatedChat)
+        })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('Database is currently unavailable.');
+          }
+          return res.json();
+        })
+        .then((savedChat: ChatSession) => {
+          setChats(prev => prev.map(c => c.id === activeChatId ? savedChat : c));
+          setActiveChatId(savedChat.id);
+          setDbError(null);
+        })
+        .catch(err => {
+          console.error("Error saving chat session to DB:", err);
+          setDbError('Database is currently unavailable. Chat session could not be saved.');
+          setChats(prev => prev.map(c => c.id === activeChatId ? updatedChat : c));
+        });
+      } else {
+        // Guest mode state sync
+        const updatedChats = chats.map(c => c.id === activeChatId ? updatedChat : c);
+        setChats(updatedChats);
+        localStorage.setItem('guest_chats', JSON.stringify(updatedChats));
+      }
+    }
+  }, [messages, activeChatId, chats, token]);
+
+  const handleNewChatForToken = (tokenVal: string | null) => {
+    isSwitchingChat.current = true;
+    const tempChat: ChatSession = {
+      id: crypto.randomUUID(),
+      title: "New Chat",
+      messages: [],
+      timestamp: Date.now()
+    };
+
+    if (tokenVal) {
+      fetch("http://localhost:8083/api/chats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenVal}`
+        },
+        body: JSON.stringify(tempChat)
       })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error('Database is currently unavailable.');
-        }
+      .then((res) => {
+        if (!res.ok) throw new Error("Database Error");
         return res.json();
       })
-     .then((savedChat: ChatSession) => {
-    setChats(prev =>
-        prev.map(c =>
-            c.id === activeChatId ? savedChat : c
-        )
-    );
-
-    setActiveChatId(savedChat.id);
-
-    setDbError(null);
-})
-      .catch(err => {
-        console.error("Error saving chat session to DB:", err);
-        setDbError('Database is currently unavailable. Chat session could not be saved.');
-        // Fallback local update to keep UI in sync
-        setChats(prev => prev.map(c => c.id === activeChatId ? updatedChat : c));
+      .then((savedChat: ChatSession) => {
+        setChats(prev => [savedChat, ...prev]);
+        setActiveChatId(savedChat.id);
+        setMessages([]);
+        setSidebarOpen(false);
+        setDbError(null);
+        isSwitchingChat.current = false;
+      })
+      .catch((err) => {
+        console.error(err);
+        setDbError("Database is currently unavailable. Chat session could not be saved.");
       });
+    } else {
+      // Guest mode setup
+      setChats(prev => {
+        const next = [tempChat, ...prev.filter(c => c.messages.length > 0)];
+        localStorage.setItem('guest_chats', JSON.stringify(next));
+        return next;
+      });
+      setActiveChatId(tempChat.id);
+      setMessages([]);
+      setSidebarOpen(false);
+      isSwitchingChat.current = false;
     }
-  }, [messages, activeChatId, chats]);
-
-  // Start a new chat session
- const handleNewChat = () => {
-  isSwitchingChat.current = true;
-
-  const tempChat: ChatSession = {
-    id: crypto.randomUUID(),
-    title: "New Chat",
-    messages: [],
-    timestamp: Date.now()
   };
 
-  fetch("http://localhost:8083/api/chats", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(tempChat)
-  })
-    .then((res) => {
-      if (!res.ok) {
-        throw new Error("Database Error");
-      }
-      return res.json();
-    })
-  .then((savedChat: ChatSession) => {
-
-    setChats(prev => [savedChat, ...prev]);
-
-    setActiveChatId(savedChat.id);
-
-    setMessages([]);
-
-    setSidebarOpen(false);
-
-    setDbError(null);
-
-    isSwitchingChat.current = false;
-})
-    .catch((err) => {
-      console.error(err);
-
-      setDbError(
-        "Database is currently unavailable. Chat session could not be saved."
-      );
-    });
-};
+  const handleNewChat = () => {
+    handleNewChatForToken(token);
+  };
 
   // Switch to an existing chat session
   const handleSelectChat = (chatId: string) => {
@@ -252,37 +368,282 @@ function App() {
   const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
 
-    fetch(`http://localhost:8083/api/chats/${chatId}`, {
-      method: 'DELETE'
-    })
-    .then(res => {
-      if (!res.ok) {
-        throw new Error('Database is currently unavailable.');
-      }
+    if (token) {
+      fetch(`http://localhost:8083/api/chats/${chatId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Database is currently unavailable.');
+        }
+        setChats(prev => {
+          const updated = prev.filter(c => c.id !== chatId);
+          if (activeChatId === chatId) {
+            if (updated.length > 0) {
+              setTimeout(() => handleSelectChat(updated[0].id), 0);
+            } else {
+              setTimeout(() => handleNewChat(), 0);
+            }
+          }
+          return updated;
+        });
+        setDbError(null);
+      })
+      .catch(err => {
+        console.error("Error deleting chat:", err);
+        setDbError('Database is currently unavailable. Chat session could not be deleted.');
+      });
+    } else {
+      // Guest mode deletion
       setChats(prev => {
         const updated = prev.filter(c => c.id !== chatId);
         if (activeChatId === chatId) {
           if (updated.length > 0) {
-            setTimeout(() => {
-              handleSelectChat(updated[0].id);
-            }, 0);
+            setTimeout(() => handleSelectChat(updated[0].id), 0);
           } else {
-            setTimeout(() => {
-              handleNewChat();
-            }, 0);
+            setTimeout(() => handleNewChat(), 0);
           }
         }
+        localStorage.setItem('guest_chats', JSON.stringify(updated));
         return updated;
       });
-      setDbError(null);
-    })
-    .catch(err => {
-      console.error("Error deleting chat:", err);
-      setDbError('Database is currently unavailable. Chat session could not be deleted.');
-    });
+    }
   };
 
-  // Handle voice commands: automatically send when speech is recognized
+  const handleClearAllChats = () => {
+    if (token) {
+      isSwitchingChat.current = true;
+      fetch('http://localhost:8083/api/chats', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Database is currently unavailable.');
+        }
+        setChats([]);
+        setMessages([]);
+        setActiveChatId(null);
+        setSettingsOpen(false);
+        setDbError(null);
+        setTimeout(() => {
+          handleNewChat();
+        }, 0);
+      })
+      .catch(err => {
+        console.error("Error clearing chats:", err);
+        setDbError('Database is currently unavailable. Chat history could not be cleared.');
+        isSwitchingChat.current = false;
+      });
+    } else {
+      // Clear guest local storage history
+      setChats([]);
+      setMessages([]);
+      setActiveChatId(null);
+      setSettingsOpen(false);
+      localStorage.removeItem('guest_chats');
+      setTimeout(() => {
+        handleNewChat();
+      }, 0);
+    }
+  };
+
+  // Auth Operations
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthModalStep('loading');
+    setAuthError(null);
+    try {
+      const res = await fetch('http://localhost:8083/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Authentication failed.');
+      }
+      localStorage.setItem('token', data.token);
+      setToken(data.token);
+      setUser({ email: data.email, fullName: data.fullName, role: data.role });
+      setAuthModalOpen(false);
+      setPassword('');
+      setAuthError(null);
+    } catch (err: any) {
+      setAuthError(err.message);
+      setAuthModalStep('signin');
+      setPassword('');
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
+    setAuthModalStep('loading');
+    setAuthError(null);
+    try {
+      const res = await fetch('http://localhost:8083/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName, email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Registration failed.');
+      }
+      setAuthModalStep('verify-signup');
+      setCooldown(60);
+    } catch (err: any) {
+      setAuthError(err.message);
+      setAuthModalStep('signup');
+      setPassword('');
+      setConfirmPassword('');
+    }
+  };
+
+  const handleVerifySignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthModalStep('loading');
+    setAuthError(null);
+    try {
+      const res = await fetch('http://localhost:8083/auth/verify-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpCode })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Verification failed.');
+      }
+      localStorage.setItem('token', data.token);
+      setToken(data.token);
+      setUser({ email: data.email, fullName: data.fullName, role: data.role });
+      setAuthModalOpen(false);
+      setFullName('');
+      setPassword('');
+      setConfirmPassword('');
+      setOtpCode('');
+      setAuthError(null);
+    } catch (err: any) {
+      setAuthError(err.message);
+      setAuthModalStep('verify-signup');
+      setOtpCode('');
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthModalStep('loading');
+    setAuthError(null);
+    try {
+      const res = await fetch('http://localhost:8083/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Reset code delivery failed.');
+      }
+      setAuthModalStep('reset-password');
+      setCooldown(60);
+    } catch (err: any) {
+      setAuthError(err.message);
+      setAuthModalStep('forgot-password');
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
+    setAuthModalStep('loading');
+    setAuthError(null);
+    try {
+      const res = await fetch('http://localhost:8083/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpCode, password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update credentials.');
+      }
+      setAuthModalStep('signin');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOtpCode('');
+      setAuthError(null);
+      alert("Password successfully reset! Please sign in.");
+    } catch (err: any) {
+      setAuthError(err.message);
+      setAuthModalStep('reset-password');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOtpCode('');
+    }
+  };
+
+  const handleSendOtpForSignup = async () => {
+    setCooldown(60);
+    try {
+      await fetch('http://localhost:8083/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName, email, password })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSendOtpForForgotPassword = async () => {
+    setCooldown(60);
+    try {
+      await fetch('http://localhost:8083/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleLogout = () => {
+    if (token) {
+      fetch('http://localhost:8083/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }).catch(err => console.error(err));
+    }
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    setChats([]);
+    setMessages([]);
+    setActiveChatId(null);
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setFullName('');
+    setOtpCode('');
+    setNewPassword('');
+  };
+
+  // Handle voice speech
   const handleSpeechResult = (transcript: string) => {
     setInput("");
     setLastInputMode('voice');
@@ -301,7 +662,7 @@ function App() {
     hasRecognition
   } = useVoiceAssistant(handleSpeechResult);
 
-  // Speak AI responses ONLY if the last input mode was 'voice'
+  // Speak assistant replies ONLY in voice mode
   useEffect(() => {
     if (!isTyping && messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
@@ -329,34 +690,34 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 font-sans overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50 font-sans overflow-hidden transition-colors duration-300">
       
       {/* Left Sidebar Navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700/60
+        fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 dark:bg-slate-900 border-r border-slate-200/50 dark:border-slate-800/80
         flex flex-col transform transition-transform duration-300 ease-in-out
         md:static md:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Sidebar Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-700/60">
-          <div className="flex items-center gap-3">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/50 dark:border-slate-800/60">
+          <div className="flex items-center gap-2.5">
             <Logo />
-            <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-slate-100 select-none">Jarvis</span>
+            <span className="font-bold text-base tracking-tight text-slate-800 dark:text-slate-100 select-none">Jarvis</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* New Chat Button */}
-        <div className="p-4">
+        <div className="p-3">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-brand-primary hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors duration-200 shadow-sm"
+            className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs active:scale-[0.98] cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Chat</span>
@@ -364,8 +725,8 @@ function App() {
         </div>
 
         {/* Chat History Section */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          <div className="px-3 mb-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider select-none">
+        <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1">
+          <div className="px-3 mb-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider select-none">
             Chat History
           </div>
           {chats.length <= 1 && chats[0]?.messages.length === 0 ? (
@@ -381,19 +742,19 @@ function App() {
                 <div
                   key={chat.id}
                   onClick={() => handleSelectChat(chat.id)}
-                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-150 text-sm ${
+                  className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 text-xs border ${
                     activeChatId === chat.id
-                      ? 'bg-slate-200/60 text-slate-900 dark:bg-slate-700 dark:text-slate-100 font-medium'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200'
+                      ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-slate-200/50 dark:border-slate-700/50 shadow-xs'
+                      : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/40 dark:hover:text-slate-200 border-transparent'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <MessageSquare className="w-4 h-4 flex-shrink-0 opacity-60 text-brand-primary" />
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-70 text-blue-600 dark:text-blue-500" />
                     <span className="truncate">{chat.title}</span>
                   </div>
                   <button
                     onClick={(e) => handleDeleteChat(e, chat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 rounded transition-opacity duration-150"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150"
                     title="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -417,43 +778,45 @@ function App() {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         
         {/* Top Navbar */}
-        <header className="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-800/20 border-b border-slate-200 dark:border-slate-700/60 z-10 transition-colors duration-300">
-          <div className="flex items-center gap-3">
+        <header className="h-[72px] w-full flex items-center justify-between px-8 bg-white/75 dark:bg-[#0F172A]/75 border-b border-slate-200/50 dark:border-slate-800/70 backdrop-blur-xl z-30 transition-colors duration-300">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+              className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200/50 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
-            <h1 className="text-sm font-semibold text-slate-700 dark:text-slate-200 select-none">
-              {chats.find(c => c.id === activeChatId)?.title || 'Jarvis'}
-            </h1>
+            {messages.length > 0 && (
+              <h1 className="text-xl font-semibold text-slate-850 dark:text-slate-200 select-none tracking-tight animate-fade-in">
+                {chats.find(c => c.id === activeChatId)?.title}
+              </h1>
+            )}
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3.5">
             
             {/* Audio Synthesis Info & Controls */}
             {(lastInputMode === 'voice' || isSpeaking || isListening) && (
-              <div className="flex items-center gap-2 mr-2 border-r border-slate-200 dark:border-slate-700/60 pr-4">
+              <div className="flex items-center gap-3.5 mr-1 border-r border-slate-200/50 dark:border-slate-800/80 pr-4">
                 {isSpeaking && (
                   <button
                     onClick={stopSpeaking}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-red-500 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-colors font-medium"
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-red-500 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-colors font-semibold"
                     title="Stop audio presentation"
                   >
-                    <Square className="w-3 h-3 fill-current" />
+                    <Square className="w-2.5 h-2.5 fill-current" />
                     <span>Stop</span>
                   </button>
                 )}
                 {isListening && (
-                  <span className="flex h-2 w-2 relative">
+                  <span className="flex h-2 w-2 relative mx-1">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
                 )}
                 {isSpeaking && !isMuted && (
-                  <div className="flex items-end gap-0.5 h-3">
+                  <div className="flex items-end gap-0.5 h-3 mx-1">
                     {[...Array(4)].map((_, i) => (
                       <div
                         key={i}
@@ -469,7 +832,7 @@ function App() {
                 )}
                 <button
                   onClick={toggleMute}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="w-10 h-10 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
                   title={isMuted ? "Unmute speech feedback" : "Mute speech feedback"}
                 >
                   {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -480,20 +843,120 @@ function App() {
             {/* Light/Dark mode toggler */}
             <button
               onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
             >
-              {theme === 'light' ? <Moon className="w-4.5 h-4.5" /> : <Sun className="w-4.5 h-4.5" />}
+              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
 
             {/* Optional Settings button */}
             <button 
               onClick={() => setSettingsOpen(true)}
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title="Settings"
             >
-              <Settings className="w-4.5 h-4.5" />
+              <Settings className="w-4 h-4" />
             </button>
+
+            {/* Profile Avatar Dropdown Menu (If Authenticated) */}
+            {user ? (
+              <div className="relative ml-1" ref={profileMenuRef}>
+                <button
+                  onClick={() => setProfileMenuOpen(prev => !prev)}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs transition-all hover:scale-105 active:scale-95 shadow-xs border border-white/20 select-none cursor-pointer hover:ring-4 hover:ring-blue-500/15"
+                  title={user.email}
+                >
+                  {user.fullName ? user.fullName.substring(0, 2).toUpperCase() : user.email.substring(0, 2).toUpperCase()}
+                </button>
+                {profileMenuOpen && (
+                  <>
+                    <style>{`
+                      @keyframes profileDropdownEnter {
+                        from {
+                          opacity: 0;
+                          transform: translateY(4px);
+                        }
+                        to {
+                          opacity: 1;
+                          transform: translateY(0);
+                        }
+                      }
+                      .animate-profile-dropdown {
+                        animation: profileDropdownEnter 150ms ease-out forwards;
+                      }
+                    `}</style>
+                    <div 
+                      className="absolute right-0 mt-2.5 w-[280px] rounded-xl p-4 z-50 animate-profile-dropdown select-none"
+                      style={{
+                        backgroundColor: theme === 'dark' ? '#161B26' : '#ffffff',
+                        border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
+                        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.25)',
+                        opacity: 1,
+                        backdropFilter: 'none',
+                        WebkitBackdropFilter: 'none',
+                        filter: 'none',
+                        mixBlendMode: 'normal',
+                        borderRadius: '12px'
+                      }}
+                    >
+                      {/* Triangle pointer tip matching reference */}
+                      <div 
+                        className="absolute right-4.5 -top-1 w-2 h-2 rotate-45"
+                        style={{
+                          backgroundColor: theme === 'dark' ? '#161B26' : '#ffffff',
+                          borderTop: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
+                          borderLeft: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
+                          opacity: 1,
+                          backdropFilter: 'none',
+                          WebkitBackdropFilter: 'none',
+                          filter: 'none',
+                          mixBlendMode: 'normal'
+                        }}
+                      />
+
+                      <div className="flex items-center gap-3 py-1 px-0.5">
+                        <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs select-none">
+                          {user.fullName ? user.fullName.substring(0, 2).toUpperCase() : user.email.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-bold text-slate-800 dark:text-white truncate">
+                            {user.fullName || 'User Account'}
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            {user.email}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="h-px bg-slate-100 dark:bg-white/[0.06] my-3.5" />
+                      
+                      <button
+                        onClick={(e) => {
+                          setProfileMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#ff7b7b] bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all duration-250 font-semibold cursor-pointer border border-transparent active:scale-[0.98]"
+                      >
+                        <LogOut className="w-4 h-4 text-[#ff7b7b] flex-shrink-0" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              // Sign In Button for Guest Mode
+              <button
+                onClick={() => {
+                  setAuthError(null);
+                  setAuthModalStep('signin');
+                  setAuthModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 h-10 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs rounded-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-blue-500/10 cursor-pointer ml-1"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </header>
 
@@ -505,30 +968,29 @@ function App() {
         )}
 
         {/* Messaging Box */}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative bg-slate-50 dark:bg-[#0B1120]">
           <ChatContainer messages={messages} isTyping={isTyping} />
         </div>
-
         {/* Input box section */}
-        <div className="p-4 md:p-6 border-t border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 transition-colors">
+        <div className="p-4 md:p-6 border-t border-slate-200/50 dark:border-slate-800/60 bg-white dark:bg-[#0F172A] transition-colors">
           <div className="max-w-3xl mx-auto flex flex-col gap-3">
             
             <form
               onSubmit={handleSubmit}
-              className="relative flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1.5 focus-within:border-brand-primary dark:focus-within:border-brand-primary/80 focus-within:ring-1 focus-within:ring-brand-primary/40 shadow-sm transition-all duration-200"
+              className="relative flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-750/60 rounded-xl p-1.5 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/15 transition-all duration-200 shadow-xs"
             >
               {hasRecognition && (
                 <button
                   type="button"
                   onClick={toggleListen}
-                  className={`p-2.5 rounded-xl transition-all duration-200 ${
+                  className={`p-2 rounded-lg transition-all duration-200 cursor-pointer ${
                     isListening
-                      ? 'bg-red-500/10 text-red-500 dark:bg-red-500/20'
-                      : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      ? 'bg-red-500/10 text-red-500'
+                      : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
                   }`}
                   title={isListening ? "Stop voice listening" : "Start speech recording"}
                 >
-                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
               )}
 
@@ -537,17 +999,17 @@ function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={isListening ? "Listening... speak now" : "Message Jarvis..."}
-                className="flex-1 bg-transparent border-none outline-none px-3.5 py-3 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm font-sans"
+                className="flex-1 bg-transparent border-none outline-none px-3 py-2 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm font-sans"
                 disabled={isTyping || isListening}
               />
 
               <button
                 type="submit"
                 disabled={!input.trim() || isTyping || isListening}
-                className="p-2.5 bg-brand-primary text-white hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-slate-800/40 dark:disabled:text-slate-600 rounded-xl transition-all duration-200"
+                className="p-1.5 w-8 h-8 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-slate-900/40 dark:disabled:text-slate-700 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center shadow-xs"
                 title="Send command"
               >
-                <ArrowUp className="w-5 h-5" />
+                <ArrowUp className="w-4 h-4" />
               </button>
             </form>
 
@@ -557,43 +1019,41 @@ function App() {
           </div>
         </div>
 
-      </div>
-
-      {/* Settings Modal */}
+      </div>      {/* Settings Modal */}
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
           {/* Backdrop */}
           <div 
             onClick={() => setSettingsOpen(false)}
-            className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200"
+            className="absolute inset-0 bg-slate-950/45 dark:bg-slate-950/60 backdrop-blur-md transition-opacity duration-200"
           />
           
           {/* Modal Panel */}
-          <div className="relative w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-10 overflow-hidden transition-all">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-xl shadow-xl z-10 overflow-hidden transition-all duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700/60">
-              <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100 font-sans">Settings</h3>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/50 dark:border-slate-800/60">
+              <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 font-sans tracking-tight">Settings</h3>
               <button 
                 onClick={() => setSettingsOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 rounded-full transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             
             {/* Body */}
-            <div className="p-6 space-y-6">
+            <div className="p-5 space-y-5">
               
               {/* Theme Preference */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-sans">Theme Preference</h4>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 font-sans">Toggle between light and dark visual themes</p>
+                  <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-250 font-sans">Theme Preference</h4>
+                  <p className="text-[11px] text-slate-450 dark:text-slate-500 font-sans">Toggle between light and dark themes</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors text-slate-600 dark:text-slate-300 font-sans"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold border border-slate-200/60 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-850 rounded-xl transition-all duration-200 text-slate-650 dark:text-slate-300 font-sans active:scale-95 cursor-pointer"
                 >
                   {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
                   <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
@@ -601,15 +1061,15 @@ function App() {
               </div>
               
               {/* Clear Chat History */}
-              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700/60 pt-6">
+              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-850/60 pt-5">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-sans">Clear Chat History</h4>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 font-sans">Permanently delete all conversations from history</p>
+                  <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-250 font-sans">Clear Chat History</h4>
+                  <p className="text-[11px] text-slate-450 dark:text-slate-500 font-sans">Permanently delete all conversations from history</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleClearAllChats}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 rounded-xl transition-colors font-sans"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-red-650 dark:text-red-400 border border-red-200/50 dark:border-red-900/30 bg-red-50 dark:bg-red-950/10 hover:bg-red-100 dark:hover:bg-red-950/25 rounded-xl transition-all duration-200 font-sans active:scale-95 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Clear All</span>
@@ -617,10 +1077,10 @@ function App() {
               </div>
               
               {/* About Jarvis */}
-              <div className="border-t border-slate-100 dark:border-slate-700/60 pt-6">
-                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 font-sans">About</h4>
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs space-y-1 text-slate-500 dark:text-slate-400 font-sans">
-                  <div className="font-semibold text-slate-700 dark:text-slate-300">Jarvis AI Chatbot</div>
+              <div className="border-t border-slate-100 dark:border-slate-850/60 pt-5">
+                <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-250 mb-2 font-sans">About</h4>
+                <div className="p-3 bg-slate-50/50 dark:bg-slate-900/40 rounded-lg border border-slate-150 dark:border-slate-850 text-xs space-y-1 text-slate-500 dark:text-slate-400 font-sans">
+                  <div className="font-semibold text-slate-700 dark:text-slate-350">Jarvis AI Chatbot</div>
                   <div>Version 1.0</div>
                   <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 font-mono">© 2026 Jarvis. All rights reserved.</div>
                 </div>
@@ -630,7 +1090,393 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* SaaS Authentication Modal */}
+      {authModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          {/* Backdrop blur overlay */}
+          <div 
+            onClick={() => {
+              if (authModalStep !== 'loading') setAuthModalOpen(false);
+            }}
+            className="absolute inset-0 bg-slate-950/45 dark:bg-slate-950/60 backdrop-blur-md transition-opacity duration-200"
+          />
+
+          {/* Modal Panel */}
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-xl shadow-2xl z-10 overflow-hidden transition-all duration-200 p-6 flex flex-col items-center gap-5">
+            
+            {/* Close Button */}
+            {authModalStep !== 'loading' && (
+              <button 
+                onClick={() => setAuthModalOpen(false)}
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Logo */}
+            <div className="flex flex-col items-center gap-2 text-center z-10">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-2xl shadow-sm select-none">
+                J
+              </div>
+              <h2 className="text-xl font-bold text-slate-850 dark:text-slate-100 tracking-tight mt-1.5">
+                {authModalStep === 'signin' && 'Sign In to Jarvis'}
+                {authModalStep === 'signup' && 'Create Your Mainframe Account'}
+                {authModalStep === 'verify-signup' && 'Verify Your Email'}
+                {authModalStep === 'forgot-password' && 'Password Reset Request'}
+                {authModalStep === 'reset-password' && 'Create New Password'}
+                {authModalStep === 'loading' && 'Authorizing'}
+              </h2>
+              <p className="text-xs text-slate-450 dark:text-slate-500 font-medium">
+                {authModalStep === 'signin' && 'Welcome back. Initialize system authentication.'}
+                {authModalStep === 'signup' && 'Activate secondary secure credentials.'}
+                {authModalStep === 'verify-signup' && `Enter the 6-digit code sent to ${email}.`}
+                {authModalStep === 'forgot-password' && 'Send a secure verification code to your Gmail.'}
+                {authModalStep === 'reset-password' && 'Override credentials and restore access.'}
+              </p>
+            </div>
+
+            {/* Forms */}
+            <div className="w-full z-10">
+              {authModalStep === 'loading' && (
+                <div className="flex flex-col items-center justify-center py-8 gap-4">
+                  <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-xs text-slate-450 dark:text-slate-500 animate-pulse uppercase tracking-wider font-semibold">
+                    Processing protocol...
+                  </p>
+                </div>
+              )}
+
+              {/* Sign In */}
+              {authModalStep === 'signin' && (
+                <form onSubmit={handleSignIn} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email address"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Password</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthError(null);
+                          setAuthModalStep('forgot-password');
+                        }}
+                        className="text-xs text-blue-600 dark:text-blue-450 hover:underline font-semibold animate-fade-in cursor-pointer"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showSignInPass ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignInPass(!showSignInPass)}
+                        className="absolute right-3 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        {showSignInPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs mt-2 cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                  <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-2 font-medium">
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthError(null);
+                        setAuthModalStep('signup');
+                      }}
+                      className="text-blue-600 dark:text-blue-450 font-bold hover:underline cursor-pointer"
+                    >
+                      Sign Up
+                    </button>
+                  </p>
+                </form>
+              )}
+
+              {/* Sign Up */}
+              {authModalStep === 'signup' && (
+                <form onSubmit={handleSignUp} className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Enter your full name"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email address"
+                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Password</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showSignUpPass ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignUpPass(!showSignUpPass)}
+                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        {showSignUpPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Confirm Password</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showSignUpConfirmPass ? "text" : "password"}
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm your password"
+                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignUpConfirmPass(!showSignUpConfirmPass)}
+                        className="absolute right-3 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        {showSignUpConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs mt-2 cursor-pointer"
+                  >
+                    Create Account
+                  </button>
+                  <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-2 font-medium">
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthError(null);
+                        setAuthModalStep('signin');
+                      }}
+                      className="text-blue-600 dark:text-blue-455 font-bold hover:underline cursor-pointer"
+                    >
+                      Sign In
+                    </button>
+                  </p>
+                </form>
+              )}
+
+              {/* Verify OTP (Signup & Forgot password use this similarly or separate screens) */}
+              {authModalStep === 'verify-signup' && (
+                <form onSubmit={handleVerifySignUp} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider text-center">Enter 6-Digit Code</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      pattern="\d{6}"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Enter verification code"
+                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                    />
+                  </div>
+                  {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs cursor-pointer"
+                  >
+                    Verify Code
+                  </button>
+                  <div className="flex items-center justify-between text-xs mt-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthError(null);
+                        setAuthModalStep('signup');
+                      }}
+                      className="text-slate-455 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 font-semibold cursor-pointer"
+                    >
+                      Back to Sign Up
+                    </button>
+                    <button
+                      type="button"
+                      disabled={cooldown > 0}
+                      onClick={() => handleSendOtpForSignup()}
+                      className="text-blue-600 dark:text-blue-450 hover:text-blue-700 disabled:text-slate-400 dark:disabled:text-slate-650 font-bold cursor-pointer"
+                    >
+                      {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Forgot Password */}
+              {authModalStep === 'forgot-password' && (
+                <form onSubmit={handleForgotPasswordSubmit} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your registered email"
+                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                    />
+                  </div>
+                  {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs cursor-pointer"
+                  >
+                    Send Recovery Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthError(null);
+                      setAuthModalStep('signin');
+                    }}
+                    className="w-full text-center text-xs text-slate-455 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-350 font-semibold mt-1 transition-colors cursor-pointer"
+                  >
+                    Back to Sign In
+                  </button>
+                </form>
+              )}
+
+              {/* Reset Password */}
+              {authModalStep === 'reset-password' && (
+                <form onSubmit={handleResetPasswordSubmit} className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider text-center">6-Digit Recovery Code</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      pattern="\d{6}"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Enter verification code"
+                      className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-850 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">New Password</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showResetPass ? "text" : "password"}
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password"
+                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetPass(!showResetPass)}
+                        className="absolute right-3 text-slate-455 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        {showResetPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-455 dark:text-slate-500 uppercase tracking-wider">Confirm New Password</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showResetConfirmPass ? "text" : "password"}
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm new password"
+                        className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetConfirmPass(!showResetConfirmPass)}
+                        className="absolute right-3 text-slate-455 hover:text-slate-655 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        {showResetConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-medium text-xs rounded-lg transition-all duration-200 shadow-xs mt-2 cursor-pointer"
+                  >
+                    Reset Password
+                  </button>
+                  <div className="flex items-center justify-between text-xs mt-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthError(null);
+                        setAuthModalStep('forgot-password');
+                      }}
+                      className="text-slate-455 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 font-semibold transition-colors cursor-pointer"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={cooldown > 0}
+                      onClick={() => handleSendOtpForForgotPassword()}
+                      className="text-blue-600 dark:text-blue-450 hover:text-blue-700 disabled:text-slate-400 dark:disabled:text-slate-650 font-bold cursor-pointer"
+                    >
+                      {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 export default App;

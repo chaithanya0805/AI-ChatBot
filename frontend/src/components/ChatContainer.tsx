@@ -11,14 +11,25 @@ interface ChatContainerProps {
 export const ChatContainer = ({ messages, isTyping }: ChatContainerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Reset container scroll position to top on initial component mount
   useEffect(() => {
     if (containerRef.current) {
-      const { scrollHeight, clientHeight } = containerRef.current;
+      containerRef.current.scrollTop = 0;
+    }
+  }, []);
 
-      containerRef.current.scrollTo({
-        top: scrollHeight - clientHeight,
-        behavior: 'smooth'
-      });
+  // Handle scroll offset adjustments based on message log updates
+  useEffect(() => {
+    if (containerRef.current) {
+      if (messages.length === 0) {
+        containerRef.current.scrollTop = 0;
+      } else {
+        const { scrollHeight, clientHeight } = containerRef.current;
+        containerRef.current.scrollTo({
+          top: scrollHeight - clientHeight,
+          behavior: 'smooth'
+        });
+      }
     }
   }, [messages, isTyping]);
 
@@ -29,37 +40,42 @@ export const ChatContainer = ({ messages, isTyping }: ChatContainerProps) => {
     >
       <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full pb-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center my-auto py-12 text-center animate-fade-in">
-            {/* Minimal Logo Icon */}
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-primary to-brand-secondary text-white font-bold text-2xl flex items-center justify-center shadow-md mb-6 select-none">
-              J
-            </div>
+          <div className="flex flex-col items-center justify-center my-auto py-12 text-center animate-fade-in relative w-full">
+            {/* Very soft radial glow behind the Jarvis logo and hero section */}
+            <div className="absolute top-0 w-80 h-80 bg-[radial-gradient(circle,rgba(59,130,246,0.04),transparent_65%)] pointer-events-none z-0" />
             
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-3 tracking-tight">
-              How can I help you today?
-            </h2>
+            <div className="z-10 flex flex-col items-center">
+              {/* Minimal Logo Icon */}
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xl flex items-center justify-center shadow-xs mb-6 select-none hover:scale-[0.98] transition-transform duration-200">
+                J
+              </div>
+              
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-3 tracking-tight">
+                How can I help you today?
+              </h2>
 
-            <p className="text-sm text-slate-400 dark:text-slate-500 max-w-md mb-10">
-              Ask Jarvis to answer questions, analyze documents, write code, or automate voice directives.
-            </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mb-8 leading-relaxed">
+                Ask Jarvis to answer questions, analyze documents, write code, or automate voice directives.
+              </p>
+            </div>
 
             {/* Premium feature overview cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl w-full text-left">
-              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 shadow-xs">
-                <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-1">Explain concepts</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500">"Explain quantum computing in simple terms for a beginner"</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl w-full text-left z-10">
+              <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] hover:-translate-y-[3px] hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-[#161F30] hover:shadow-xs transition-all duration-300 ease-out cursor-pointer flex flex-col justify-center h-28 group">
+                <h3 className="font-semibold text-sm text-slate-850 dark:text-slate-200 mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Explain concepts</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-450 leading-relaxed font-normal">"Explain quantum computing in simple terms for a beginner"</p>
               </div>
-              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 shadow-xs">
-                <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-1">Code & debug</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500">"Write a Python script to scrape dates from log files"</p>
+              <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] hover:-translate-y-[3px] hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-[#161F30] hover:shadow-xs transition-all duration-300 ease-out cursor-pointer flex flex-col justify-center h-28 group">
+                <h3 className="font-semibold text-sm text-slate-850 dark:text-slate-200 mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Code & debug</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-455 leading-relaxed font-normal">"Write a Python script to scrape dates from log files"</p>
               </div>
-              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 shadow-xs">
-                <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-1">Brainstorm ideas</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500">"Suggest 5 unique startup names combining AI and travel"</p>
+              <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] hover:-translate-y-[3px] hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-[#161F30] hover:shadow-xs transition-all duration-300 ease-out cursor-pointer flex flex-col justify-center h-28 group">
+                <h3 className="font-semibold text-sm text-slate-850 dark:text-slate-200 mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Brainstorm ideas</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-455 leading-relaxed font-normal">"Suggest 5 unique startup names combining AI and travel"</p>
               </div>
-              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 shadow-xs">
-                <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-1">Voice assistant</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500">Enable voice input for hands-free speech command execution</p>
+              <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] hover:-translate-y-[3px] hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-[#161F30] hover:shadow-xs transition-all duration-300 ease-out cursor-pointer flex flex-col justify-center h-28 group">
+                <h3 className="font-semibold text-sm text-slate-850 dark:text-slate-200 mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Voice assistant</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-455 leading-relaxed font-normal">Enable voice input for hands-free speech command execution</p>
               </div>
             </div>
           </div>

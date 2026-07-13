@@ -22,23 +22,41 @@ export const useChatStream = () => {
 
     setIsTyping(true);
 
+    let content = "";
+
     try {
+
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       const response = await fetch('http://localhost:8083/api/chat/ask', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ prompt }),
       });
 
       const data = await response.text();
-      let content = data;
 
-      if (response.status === 429 || data.includes('429 Too Many Requests')) {
-        content = 'Too many requests. Please try again after some time.';
+      if (!response.ok) {
+        console.error("AI service error response:", response.status, data);
+        if (response.status === 429) {
+          content = "⚠️ The AI service is currently busy. Please try again after some time.";
+        } else {
+          content = "⚠️ Jarvis is temporarily unavailable. Please try again in a few moments.";
+        }
+      } else {
+        content = data;
       }
 
+    } catch (error) {
+      console.error("Chat request exception:", error);
+      content = "⚠️ Jarvis is temporarily unavailable. Please try again in a few moments.";
+    } finally {
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -46,10 +64,6 @@ export const useChatStream = () => {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-
-    } catch (error) {
-      console.error("Chat error:", error);
-    } finally {
       setIsTyping(false);
     }
 

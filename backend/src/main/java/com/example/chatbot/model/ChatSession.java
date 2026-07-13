@@ -23,6 +23,12 @@ public class ChatSession {
     @JsonIgnore
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @JsonIgnore
+    @ToString.Exclude
+    private User user;
+
     @Column(name = "session_id", unique = true, nullable = false)
     @JsonProperty("id")
     private String sessionId;

@@ -38,8 +38,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         {/* Avatar */}
         <div className="flex-shrink-0">
           {isUser ? (
-            <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shadow-xs">
-              <User className="w-4.5 h-4.5" />
+            <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center shadow-xs">
+              <User className="w-4 h-4" />
             </div>
           ) : (
             <AssistantAvatar />
@@ -51,12 +51,12 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
           className={`
             px-5 py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-200
             ${isUser 
-              ? 'bg-gradient-to-r from-brand-primary to-brand-secondary text-white rounded-2xl rounded-tr-xs' 
-              : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700/60 rounded-2xl rounded-tl-xs'
+              ? 'bg-blue-600 text-white rounded-2xl rounded-tr-xs font-medium' 
+              : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl rounded-tl-xs'
             }
           `}
         >
-          <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2 prose-pre:bg-slate-50 dark:prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-slate-200 dark:prose-pre:border-slate-700/60 prose-pre:shadow-sm prose-code:text-brand-primary dark:prose-code:text-brand-secondary prose-code:font-mono font-sans tracking-normal">
+          <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2.5 prose-pre:bg-slate-50 dark:prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-slate-200/80 dark:prose-pre:border-slate-800/60 prose-pre:shadow-xs prose-pre:rounded-xl prose-code:text-brand-primary dark:prose-code:text-brand-secondary prose-code:font-mono font-sans tracking-normal">
             {content ? (
               <ReactMarkdown>{content}</ReactMarkdown>
             ) : isStreaming ? (

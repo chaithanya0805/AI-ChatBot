@@ -1,6 +1,7 @@
 package com.example.chatbot.repository;
 
 import com.example.chatbot.model.ChatSession;
+import com.example.chatbot.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -11,6 +12,12 @@ import java.util.Optional;
 
 @Repository
 public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> {
+    // Retrieve chat sessions for a specific user ordered by updated_at (timestamp) descending
+    List<ChatSession> findByUserOrderByTimestampDesc(User user);
+
+    // Find all sessions of a specific user
+    List<ChatSession> findByUser(User user);
+
     // Retrieve chat sessions ordered by updated_at (timestamp) descending
     List<ChatSession> findAllByOrderByTimestampDesc();
 
