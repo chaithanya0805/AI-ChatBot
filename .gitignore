@@ -1,4 +1,3 @@
 node_modules/
 target/
 .env
-backend/src/main/resources/application.yml
