@@ -75,12 +75,12 @@
 
         <!-- ✅ FIXED Spring AI (with version) -->
         
-        <!-- MySQL -->
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
+        <!-- PostgreSQl -->
+     <dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+    <scope>runtime</scope>
+</dependency>
 
         <!-- Lombok -->
         <dependency>
