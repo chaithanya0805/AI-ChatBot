@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChatContainer } from './components/ChatContainer';
 import { useChatStream, Message } from './hooks/useChatStream';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
+import { API_BASE_URL } from './config';
 import { 
   Plus, 
   Trash2, 
@@ -87,7 +88,7 @@ function App() {
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
-      fetch('http://localhost:8083/auth/me', {
+      fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${storedToken}`
         }
@@ -180,7 +181,7 @@ function App() {
   useEffect(() => {
     if (token) {
       // Cloud mode load
-      fetch('http://localhost:8083/api/chats', {
+      fetch(`${API_BASE_URL}/api/chats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -264,7 +265,7 @@ function App() {
       };
 
       if (token) {
-        fetch('http://localhost:8083/api/chats', {
+        fetch(`${API_BASE_URL}/api/chats`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -307,7 +308,7 @@ function App() {
     };
 
     if (tokenVal) {
-      fetch("http://localhost:8083/api/chats", {
+      fetch(`${API_BASE_URL}/api/chats`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -369,7 +370,7 @@ function App() {
     e.stopPropagation();
 
     if (token) {
-      fetch(`http://localhost:8083/api/chats/${chatId}`, {
+      fetch(`${API_BASE_URL}/api/chats/${chatId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -416,7 +417,7 @@ function App() {
   const handleClearAllChats = () => {
     if (token) {
       isSwitchingChat.current = true;
-      fetch('http://localhost:8083/api/chats', {
+      fetch(`${API_BASE_URL}/api/chats`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -459,7 +460,7 @@ function App() {
     setAuthModalStep('loading');
     setAuthError(null);
     try {
-      const res = await fetch('http://localhost:8083/auth/signin', {
+      const res = await fetch(`${API_BASE_URL}/auth/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -494,7 +495,7 @@ function App() {
     setAuthModalStep('loading');
     setAuthError(null);
     try {
-      const res = await fetch('http://localhost:8083/auth/signup', {
+      const res = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fullName, email, password })
@@ -518,7 +519,7 @@ function App() {
     setAuthModalStep('loading');
     setAuthError(null);
     try {
-      const res = await fetch('http://localhost:8083/auth/verify-signup', {
+      const res = await fetch(`${API_BASE_URL}/auth/verify-signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: otpCode })
@@ -552,7 +553,7 @@ function App() {
     setAuthModalStep('loading');
     setAuthError(null);
     try {
-      const res = await fetch('http://localhost:8083/auth/forgot-password', {
+      const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -578,7 +579,7 @@ function App() {
     setAuthModalStep('loading');
     setAuthError(null);
     try {
-      const res = await fetch('http://localhost:8083/auth/reset-password', {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: otpCode, password: newPassword })
@@ -605,7 +606,7 @@ function App() {
   const handleSendOtpForSignup = async () => {
     setCooldown(60);
     try {
-      await fetch('http://localhost:8083/auth/signup', {
+      await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fullName, email, password })
@@ -618,7 +619,7 @@ function App() {
   const handleSendOtpForForgotPassword = async () => {
     setCooldown(60);
     try {
-      await fetch('http://localhost:8083/auth/forgot-password', {
+      await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -630,7 +631,7 @@ function App() {
 
   const handleLogout = () => {
     if (token) {
-      fetch('http://localhost:8083/auth/logout', {
+      fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

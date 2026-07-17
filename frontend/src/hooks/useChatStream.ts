@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 
 export type Message = {
   id: string;
@@ -34,7 +35,7 @@ export const useChatStream = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('http://localhost:8083/api/chat/ask', {
+      const response = await fetch(`${API_BASE_URL}/api/chat/ask`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ prompt }),
