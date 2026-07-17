@@ -30,6 +30,12 @@ spring:
           auth: true
           starttls:
             enable: true
+            required: true
+          ssl:
+            protocols: TLSv1.2
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 jwt:
   secret: ${JWT_SECRET}
