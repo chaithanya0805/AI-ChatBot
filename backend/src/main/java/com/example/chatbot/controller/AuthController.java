@@ -38,7 +38,7 @@ public class AuthController {
                         )))))
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(e -> {
-                    log.error("Error signing up: {}", e.getMessage());
+                    log.error("Error signing up", e);
                     HttpStatus status = HttpStatus.BAD_REQUEST;
                     if (e instanceof IllegalStateException && e.getMessage().contains("Too many")) {
                         status = HttpStatus.TOO_MANY_REQUESTS;
@@ -73,7 +73,7 @@ public class AuthController {
         })
         .subscribeOn(Schedulers.boundedElastic())
         .onErrorResume(e -> {
-            log.error("Error verifying registration OTP: {}", e.getMessage());
+            log.error("Error verifying registration OTP", e);
             return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "An internal error occurred. Please try again.")));
         });
@@ -98,7 +98,7 @@ public class AuthController {
         })
         .subscribeOn(Schedulers.boundedElastic())
         .onErrorResume(e -> {
-            log.error("Error signing in: {}", e.getMessage());
+            log.error("Error signing in", e);
             HttpStatus status = HttpStatus.UNAUTHORIZED;
             if (e instanceof IllegalStateException) {
                 status = HttpStatus.FORBIDDEN; // unverified email
@@ -118,7 +118,7 @@ public class AuthController {
                         )))))
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(e -> {
-                    log.error("Error requesting password recovery: {}", e.getMessage());
+                    log.error("Error requesting password recovery", e);
                     HttpStatus status = HttpStatus.BAD_REQUEST;
                     if (e instanceof IllegalStateException && e.getMessage().contains("Too many")) {
                         status = HttpStatus.TOO_MANY_REQUESTS;
@@ -143,7 +143,7 @@ public class AuthController {
         })
         .subscribeOn(Schedulers.boundedElastic())
         .onErrorResume(e -> {
-            log.error("Error resetting password: {}", e.getMessage());
+            log.error("Error resetting password", e);
             return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "An internal error occurred. Please try again.")));
         });

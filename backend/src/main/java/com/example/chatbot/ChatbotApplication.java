@@ -12,16 +12,26 @@ public class ChatbotApplication {
     public static void main(String[] args) {
 
         try {
-            Dotenv dotenv = Dotenv.configure()
-                    .directory("./")
-                    .ignoreIfMalformed()
-                    .ignoreIfMissing()
-                    .load();
+            Dotenv dotenv;
+            try {
+                dotenv = Dotenv.configure()
+                        .directory("./backend")
+                        .ignoreIfMalformed()
+                        .load();
+            } catch (Exception e) {
+                dotenv = Dotenv.configure()
+                        .directory("./")
+                        .ignoreIfMalformed()
+                        .ignoreIfMissing()
+                        .load();
+            }
 
-            dotenv.entries().forEach(entry ->
-                    System.setProperty(entry.getKey(), entry.getValue()));
+            if (dotenv != null) {
+                dotenv.entries().forEach(entry ->
+                        System.setProperty(entry.getKey(), entry.getValue()));
+            }
         } catch (Exception e) {
-            System.out.println("No .env file found. Using system environment variables.");
+            System.out.println("No .env file found or error loading it. Using system environment variables.");
         }
 
         SpringApplication.run(ChatbotApplication.class, args);
