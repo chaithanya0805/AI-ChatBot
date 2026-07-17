@@ -23,8 +23,8 @@ public class ChatMessage {
     @Column(nullable = false)
     private String role;
 
-    @Column(name = "message", columnDefinition = "LONGTEXT", nullable = false)
-    private String content;
+   @Column(name = "message", columnDefinition = "TEXT", nullable = false)
+private String message;
 
     @Column(name = "created_at", nullable = false)
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
