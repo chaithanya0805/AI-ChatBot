@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Modern Web Speech API interfaces
-const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 // Helper function to clean markdown formatting before Speech Synthesis speaks the text
 const cleanMarkdown = (markdown: string): string => {

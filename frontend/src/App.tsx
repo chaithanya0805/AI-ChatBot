@@ -17,7 +17,6 @@ import {
   VolumeX, 
   Square,
   ArrowUp,
-  User,
   LogOut,
   Eye,
   EyeOff
@@ -941,7 +940,7 @@ function App() {
                       <div className="h-px bg-slate-100 dark:bg-[#2A2A2A] my-3.5" />
                       
                       <button
-                        onClick={(e) => {
+                        onClick={() => {
                           setProfileMenuOpen(false);
                           handleLogout();
                         }}
