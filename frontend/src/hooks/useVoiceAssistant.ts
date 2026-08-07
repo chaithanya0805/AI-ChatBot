@@ -69,10 +69,9 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
 
   if (!recognitionRef.current && SpeechRecognition) {
     const rec = new SpeechRecognition();
-    rec.continuous = true;
-    rec.interimResults = true;
-    // Using en-IN handles Indian accent English and code-switched Telugu words better natively
-    rec.lang = 'en-IN';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.lang = navigator.language || "en-US";
     recognitionRef.current = rec;
   }
   const recognition = recognitionRef.current;
@@ -157,7 +156,6 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
     if (!recognition) return;
     
     try {
-      recognition.start();
       setIsListening(true);
       
       // TEMP DEBUG LOGS
@@ -202,6 +200,9 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
         }
         setIsListening(false);
       };
+
+      // Call start() as the LAST statement to prevent race conditions in native browser event loops
+      recognition.start();
     } catch (e) {
       console.error("Speech recognition error:", e);
       setIsListening(false);
