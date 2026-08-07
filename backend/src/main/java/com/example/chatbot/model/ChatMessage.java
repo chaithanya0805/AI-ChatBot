@@ -1,5 +1,6 @@
 package com.example.chatbot.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -23,8 +24,10 @@ public class ChatMessage {
     @Column(nullable = false)
     private String role;
 
-   @Column(name = "message", columnDefinition = "TEXT", nullable = false)
-private String message;
+    @Column(name = "message", columnDefinition = "TEXT", nullable = false)
+    @JsonProperty("content")
+    @JsonAlias("message")
+    private String message;
 
     @Column(name = "created_at", nullable = false)
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
