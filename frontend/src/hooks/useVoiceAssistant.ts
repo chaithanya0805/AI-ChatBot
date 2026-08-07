@@ -160,7 +160,13 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       recognition.start();
       setIsListening(true);
       
+      // TEMP DEBUG LOGS
+      recognition.onstart = () => {
+        console.log("[VOICE] onstart");
+      };
+
       recognition.onresult = (event: any) => {
+        console.log("[VOICE] onresult", event.results[0][0].transcript);
         let transcript = '';
         for (let i = 0; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
@@ -178,7 +184,9 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
         }, 1500); // Wait 1.5 seconds after user stops speaking to send the query
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: any) => {
+        console.error("[VOICE] onerror", event.error);
+        console.error(event);
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
@@ -187,6 +195,7 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       };
 
       recognition.onend = () => {
+        console.log("[VOICE] onend");
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
