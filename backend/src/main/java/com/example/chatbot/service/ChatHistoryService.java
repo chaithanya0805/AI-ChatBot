@@ -59,17 +59,26 @@ public class ChatHistoryService {
                     throw new AccessDeniedException("Unauthorized access to this chat session.");
                 }
 
-                session.setId(existing.getId());
-                session.setUser(user);
-                session.setCreatedAt(existing.getCreatedAt());
-                session.setTimestamp(LocalDateTime.now());
+                // Update fields of the managed entity
+                existing.setTitle(session.getTitle());
+                existing.setTimestamp(LocalDateTime.now());
+
+                // Sync the messages collection
+                existing.getMessages().clear();
+                if (session.getMessages() != null) {
+                    existing.getMessages().addAll(session.getMessages());
+                }
+
+                // Use the updated managed entity for the rest of the flow
+                session = existing;
             }
 
-            // Message timestamps
+            // Message timestamps & clear IDs to avoid detached entity conflicts
             if (session.getMessages() != null) {
                 LocalDateTime base = LocalDateTime.now();
                 for (int i = 0; i < session.getMessages().size(); i++) {
                     ChatMessage msg = session.getMessages().get(i);
+                    msg.setId(null); // Clear ID to treat as a new insert
                     if (msg.getCreatedAt() == null) {
                         msg.setCreatedAt(base.plusNanos(i * 1_000_000L));
                     }
