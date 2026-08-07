@@ -280,9 +280,15 @@ function App() {
           return res.json();
         })
         .then((savedChat: ChatSession) => {
+          isSwitchingChat.current = true;
           setChats(prev => prev.map(c => c.id === activeChatId ? savedChat : c));
           setActiveChatId(savedChat.id);
+          console.log("[setMessages] Invoked with savedChat.messages:", savedChat.messages);
+          setMessages(savedChat.messages);
           setDbError(null);
+          setTimeout(() => {
+            isSwitchingChat.current = false;
+          }, 50);
         })
         .catch(err => {
           console.error("Error saving chat session to DB:", err);
@@ -674,9 +680,12 @@ function App() {
 
   // Speak assistant replies ONLY in voice mode
   useEffect(() => {
+    console.log("[Speech Effect] Executed. isTyping:", isTyping, "messages.length:", messages.length, "lastInputMode:", lastInputMode);
     if (!isTyping && messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
+      console.log("[Speech Effect] lastMessage role:", lastMessage.role, "content:", lastMessage.content);
       if (lastMessage.role === 'assistant' && lastInputMode === 'voice') {
+        console.log("[Speech Effect] calling speak() with content:", lastMessage.content);
         speak(lastMessage.content);
       }
     }
@@ -704,48 +713,48 @@ function App() {
       
       {/* Left Sidebar Navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 dark:bg-[#0F0F0F] border-r border-slate-200/50 dark:border-[#2A2A2A]
-        flex flex-col transform transition-transform duration-300 ease-in-out pb-[env(safe-area-inset-bottom)]
+        fixed inset-y-0 left-0 z-40 bg-slate-50 dark:bg-[#0F0F0F] border-r border-slate-200/50 dark:border-[#2A2A2A]
+        flex flex-col transform transition-transform duration-300 ease-in-out pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]
         md:static md:translate-x-0
+        w-[280px] sm:w-[320px] md:w-[72px] lg:w-[260px] xl:w-[clamp(260px,18vw,300px)]
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Sidebar Header */}
         <div className="h-16 pt-[env(safe-area-inset-top)] box-content flex items-center justify-between px-5 border-b border-slate-200/50 dark:border-[#2A2A2A] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Logo />
-            <span className="font-bold text-base tracking-tight text-slate-800 dark:text-[#F5F5F5] select-none">Jarvis</span>
+            <span className="font-bold text-base tracking-tight text-slate-800 dark:text-[#F5F5F5] select-none md:hidden lg:inline">Jarvis</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-slate-655 dark:hover:text-slate-250 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg transition-colors"
+            className="md:hidden w-11 h-11 flex items-center justify-center text-slate-400 hover:text-slate-655 dark:hover:text-slate-250 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* New Chat Button */}
-        <div className="p-3">
+        <div className="p-3 flex-shrink-0">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-1.5 py-2 px-4 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 px-4 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] font-semibold text-xs rounded-xl hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>New Chat</span>
+            <Plus className="w-4 h-4 flex-shrink-0" />
+            <span className="md:hidden lg:inline">New Chat</span>
           </button>
         </div>
 
         {/* Chat History Section */}
         <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1">
-          <div className="px-3 mb-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider select-none">
+          <div className="px-3 mb-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider select-none md:hidden lg:block">
             Chat History
           </div>
           {chats.length <= 1 && chats[0]?.messages.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-slate-400 dark:text-slate-500 italic select-none">
+            <div className="px-3 py-4 text-xs text-slate-400 dark:text-slate-500 italic select-none md:hidden lg:block">
               No recent conversations
             </div>
           ) : (
             chats.map((chat) => {
-              // Hide empty new chat in history list unless it's selected
               if (chat.messages.length === 0 && chat.id !== activeChatId) return null;
               
               return (
@@ -761,13 +770,13 @@ function App() {
                   {activeChatId === chat.id && (
                     <div className="absolute left-0 top-[25%] bottom-[25%] w-[3px] bg-[#D4AF6A] rounded-r-md" />
                   )}
-                  <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="flex items-center gap-2 overflow-hidden w-full justify-center lg:justify-start">
                     <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-75 text-[#D4AF6A]" />
-                    <span className="truncate">{chat.title}</span>
+                    <span className="truncate md:hidden lg:inline">{chat.title}</span>
                   </div>
                   <button
                     onClick={(e) => handleDeleteChat(e, chat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer md:hidden lg:block"
                     title="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -791,16 +800,16 @@ function App() {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 relative">
         
         {/* Top Navbar */}
-        <header className="h-[72px] pt-[env(safe-area-inset-top)] box-content w-full flex-shrink-0 flex items-center justify-between px-4 md:px-8 bg-white/75 dark:bg-[#090909]/75 border-b border-slate-200/50 dark:border-[#2A2A2A] backdrop-blur-xl z-30 transition-colors duration-300">
+        <header className="h-[72px] pt-[env(safe-area-inset-top)] box-content w-full flex-shrink-0 flex items-center justify-between pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] md:pl-[calc(2rem+env(safe-area-inset-left))] md:pr-[calc(2rem+env(safe-area-inset-right))] bg-white/75 dark:bg-[#090909]/75 border-b border-slate-200/50 dark:border-[#2A2A2A] backdrop-blur-xl z-30 transition-colors duration-300">
           <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-slate-200/50 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="md:hidden w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl border border-slate-200/50 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Menu className="w-4 h-4" />
             </button>
             {messages.length > 0 && (
-              <h1 className="text-sm sm:text-base md:text-xl font-semibold text-slate-855 dark:text-[#F5F5F5] select-none tracking-tight animate-fade-in truncate max-w-[120px] sm:max-w-[240px] md:max-w-xs lg:max-w-md">
+              <h1 className="font-semibold text-slate-855 dark:text-[#F5F5F5] select-none tracking-tight animate-fade-in truncate max-w-[80px] min-[360px]:max-w-[120px] sm:max-w-[240px] md:max-w-xs lg:max-w-md text-[clamp(0.875rem,1.5vw+0.5rem,1.25rem)]">
                 {chats.find(c => c.id === activeChatId)?.title}
               </h1>
             )}
@@ -819,7 +828,7 @@ function App() {
                     title="Stop audio presentation"
                   >
                     <Square className="w-2.5 h-2.5 fill-current" />
-                    <span>Stop</span>
+                    <span className="hidden sm:inline">Stop</span>
                   </button>
                 )}
                 {isListening && (
@@ -856,7 +865,7 @@ function App() {
             {/* Light/Dark mode toggler */}
             <button
               onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-[#9A9A9A] dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="flex w-10 h-10 items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-[#9A9A9A] dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
             >
               {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
@@ -865,7 +874,7 @@ function App() {
             {/* Optional Settings button */}
             <button 
               onClick={() => setSettingsOpen(true)}
-              className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-[#9A9A9A] dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="flex w-10 h-10 items-center justify-center rounded-full text-slate-500 hover:text-slate-850 dark:text-[#9A9A9A] dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#1E1E1E] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title="Settings"
             >
               <Settings className="w-4 h-4" />
@@ -982,7 +991,7 @@ function App() {
         </div>
         {/* Input box section */}
         <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:p-6 flex-shrink-0 border-t border-slate-200/50 dark:border-[#2A2A2A] bg-white dark:bg-[#0F0F0F] transition-colors">
-          <div className="max-w-3xl mx-auto flex flex-col gap-3">
+          <div className="max-w-[900px] w-full mx-auto flex flex-col gap-3">
             
             <form
               onSubmit={handleSubmit}

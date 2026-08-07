@@ -38,7 +38,7 @@ export const ChatContainer = ({ messages, isTyping }: ChatContainerProps) => {
       ref={containerRef}
       className="h-full overflow-y-auto px-3 py-4 sm:px-6 md:px-8 scroll-smooth"
     >
-      <div className="max-w-3xl mx-auto flex flex-col justify-end min-h-full pb-4">
+      <div className="max-w-[900px] w-full mx-auto flex flex-col justify-end min-h-full pb-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center my-auto py-12 text-center animate-fade-in relative w-full">
             {/* Very soft radial glow behind the Jarvis logo and hero section */}
@@ -50,7 +50,7 @@ export const ChatContainer = ({ messages, isTyping }: ChatContainerProps) => {
                 J
               </div>
               
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-[#F5F5F5] mb-3 tracking-tight">
+              <h2 className="font-bold text-slate-800 dark:text-[#F5F5F5] mb-3 tracking-tight text-[clamp(1.5rem,3vw+0.5rem,2.25rem)]">
                 How can I help you today?
               </h2>
 

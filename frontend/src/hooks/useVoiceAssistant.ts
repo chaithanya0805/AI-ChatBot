@@ -93,12 +93,20 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   }, []);
 
   const speak = useCallback((text: string) => {
-    if (isMuted || !window.speechSynthesis) return;
+    console.log("[useVoiceAssistant] speak() entered with text:", text);
+    if (isMuted || !window.speechSynthesis) {
+      console.log("[useVoiceAssistant] speak() early return. isMuted:", isMuted, "hasSynthesis:", !!window.speechSynthesis);
+      return;
+    }
 
+    console.log("[useVoiceAssistant] calling speechSynthesis.cancel()");
     window.speechSynthesis.cancel(); // Stop any ongoing speech
 
     const cleanedText = cleanMarkdown(text);
-    if (!cleanedText) return;
+    if (!cleanedText) {
+      console.log("[useVoiceAssistant] speak() early return: cleanedText is empty");
+      return;
+    }
 
     const utterance = new SpeechSynthesisUtterance(cleanedText);
     
@@ -113,17 +121,30 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       voices[0];
                      
     if (bestVoice) {
+      console.log("[useVoiceAssistant] selected voice:", bestVoice.name);
       utterance.voice = bestVoice;
+    } else {
+      console.log("[useVoiceAssistant] no voice selected (using system default)");
     }
 
     // Tweak pitch and rate for a calm, intelligent JARVIS vibe
     utterance.pitch = 0.85; 
     utterance.rate = 0.95;  
     
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onstart = () => {
+      console.log("[useVoiceAssistant] utterance.onstart fired!");
+      setIsSpeaking(true);
+    };
+    utterance.onend = () => {
+      console.log("[useVoiceAssistant] utterance.onend fired!");
+      setIsSpeaking(false);
+    };
+    utterance.onerror = (e: any) => {
+      console.log("[useVoiceAssistant] utterance.onerror fired! error event details:", e.error);
+      setIsSpeaking(false);
+    };
 
+    console.log("[useVoiceAssistant] calling speechSynthesis.speak(utterance)");
     window.speechSynthesis.speak(utterance);
   }, [voices, isMuted]);
 

@@ -34,7 +34,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
       }}
       className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 group`}
     >
-      <div className={`flex max-w-[92%] sm:max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-2 sm:gap-3 items-start`}>
+      <div className={`flex ${isUser ? 'max-w-[70%]' : 'max-w-[85%] sm:max-w-[75ch] w-full'} ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-2 sm:gap-3 items-start`}>
         {/* Avatar */}
         <div className="flex-shrink-0">
           {isUser ? (
@@ -58,7 +58,23 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         >
           <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2.5 prose-pre:bg-slate-50 dark:prose-pre:bg-[#151515] prose-pre:border prose-pre:border-slate-200/80 dark:prose-pre:border-[#2A2A2A] prose-pre:shadow-xs prose-pre:rounded-xl prose-code:text-[#D4AF6A] dark:prose-code:text-[#D4AF6A] prose-code:font-mono font-sans tracking-normal">
             {content ? (
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <ReactMarkdown
+                components={{
+                  table: ({node, ...props}) => (
+                    <div className="overflow-x-auto w-full my-4 border border-slate-200/50 dark:border-slate-800 rounded-xl scrollbar-thin">
+                      <table className="min-w-full text-xs border-collapse" {...props} />
+                    </div>
+                  ),
+                  th: ({node, ...props}) => (
+                    <th className="px-4 py-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-left font-bold" {...props} />
+                  ),
+                  td: ({node, ...props}) => (
+                    <td className="px-4 py-2 border-b border-slate-100/50 dark:border-slate-900/30 text-left" {...props} />
+                  )
+                }}
+              >
+                {content}
+              </ReactMarkdown>
             ) : isStreaming ? (
               <div className="flex flex-col gap-1 py-0.5 px-0.5">
                 <span className="text-xs text-slate-450 dark:text-[#9A9A9A] mb-1.5 select-none font-medium animate-pulse">
