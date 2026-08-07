@@ -1,24 +1,28 @@
 package com.example.chatbot.service;
 
-import jakarta.mail.internet.MimeMessage;
+import lombok.Builder;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @Service
 @Slf4j
 public class EmailService {
 
-    private final JavaMailSender mailSender;
-    private final String fromEmail;
+    private final WebClient webClient;
 
-    public EmailService(
-            JavaMailSender mailSender,
-            @Value("${spring.mail.username}") String fromEmail) {
-        this.mailSender = mailSender;
-        this.fromEmail = fromEmail;
+    public EmailService(@Value("${brevo.api.key}") String apiKey) {
+        this.webClient = WebClient.builder()
+                .baseUrl("https://api.brevo.com/v3")
+                .defaultHeader("api-key", apiKey)
+                .defaultHeader("Content-Type", "application/json")
+                .defaultHeader("Accept", "application/json")
+                .build();
     }
 
     public void sendOtpEmail(String toEmail, String otp, String subject, String flowName) {
@@ -35,20 +39,54 @@ public class EmailService {
                 </html>
                 """.formatted(flowName, otp);
 
-        try {
-            log.info("Sending OTP email via Brevo SMTP to {}", toEmail);
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromEmail);
-            helper.setTo(toEmail);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
+        BrevoEmailRequest request = BrevoEmailRequest.builder()
+                .sender(Sender.builder().name("Jarvis AI").email("jarvis.ai.chatbot@gmail.com").build())
+                .to(List.of(Recipient.builder().email(toEmail).build()))
+                .subject(subject)
+                .htmlContent(htmlContent)
+                .build();
 
-            mailSender.send(message);
+        try {
+            log.info("Sending OTP email via Brevo API to {}", toEmail);
+            webClient.post()
+                    .uri("/smtp/email")
+                    .bodyValue(request)
+                    .retrieve()
+                    .onStatus(status -> status.isError(), clientResponse ->
+                            clientResponse.bodyToMono(String.class)
+                                    .flatMap(errorBody -> {
+                                        log.error("Brevo API returned error status: {} - {}", clientResponse.statusCode(), errorBody);
+                                        return Mono.error(new RuntimeException("Brevo API error: " + clientResponse.statusCode() + " - " + errorBody));
+                                    })
+                    )
+                    .toBodilessEntity()
+                    .block();
             log.info("OTP email with subject '{}' successfully sent to {}", subject, toEmail);
         } catch (Exception e) {
-            log.error("Failed to deliver email via SMTP to {}", toEmail, e);
-            throw new RuntimeException("Failed to send OTP email via SMTP: " + e.getMessage(), e);
+            log.error("Failed to deliver email via Brevo API to {}", toEmail, e);
+            throw new RuntimeException("Failed to send OTP email via Brevo: " + e.getMessage(), e);
         }
+    }
+
+    @Data
+    @Builder
+    private static class BrevoEmailRequest {
+        private Sender sender;
+        private List<Recipient> to;
+        private String subject;
+        private String htmlContent;
+    }
+
+    @Data
+    @Builder
+    private static class Sender {
+        private String name;
+        private String email;
+    }
+
+    @Data
+    @Builder
+    private static class Recipient {
+        private String email;
     }
 }
