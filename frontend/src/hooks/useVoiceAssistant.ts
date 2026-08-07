@@ -69,9 +69,10 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
 
   if (!recognitionRef.current && SpeechRecognition) {
     const rec = new SpeechRecognition();
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    // Using en-IN handles Indian accent English and code-switched Telugu words better natively
+    rec.lang = 'en-IN';
     recognitionRef.current = rec;
   }
   const recognition = recognitionRef.current;
@@ -156,15 +157,10 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
     if (!recognition) return;
     
     try {
+      recognition.start();
       setIsListening(true);
       
-      // TEMP DEBUG LOGS
-      recognition.onstart = () => {
-        console.log("[VOICE] onstart");
-      };
-
       recognition.onresult = (event: any) => {
-        console.log("[VOICE] onresult", event.results[0][0].transcript);
         let transcript = '';
         for (let i = 0; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
@@ -182,9 +178,7 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
         }, 1500); // Wait 1.5 seconds after user stops speaking to send the query
       };
 
-      recognition.onerror = (event: any) => {
-        console.error("[VOICE] onerror", event.error);
-        console.error(event);
+      recognition.onerror = () => {
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
@@ -193,16 +187,12 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       };
 
       recognition.onend = () => {
-        console.log("[VOICE] onend");
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
         }
         setIsListening(false);
       };
-
-      // Call start() as the LAST statement to prevent race conditions in native browser event loops
-      recognition.start();
     } catch (e) {
       console.error("Speech recognition error:", e);
       setIsListening(false);
