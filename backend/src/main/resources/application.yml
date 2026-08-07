@@ -19,6 +19,18 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+  mail:
+    host: smtp-relay.brevo.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 604800000
@@ -26,8 +38,3 @@ jwt:
 gemini:
   api:
     key: ${GEMINI_API_KEY}
-
-resend:
-  api:
-    key: ${RESEND_API_KEY}
-  from: ${RESEND_FROM_EMAIL:onboarding@resend.dev}

@@ -1,28 +1,23 @@
 package com.example.chatbot.service;
 
-import lombok.Builder;
-import lombok.Data;
+import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 @Service
 @Slf4j
 public class EmailService {
 
-    private final WebClient webClient;
+    private final JavaMailSender mailSender;
     private final String fromEmail;
 
     public EmailService(
-            @Value("${resend.api.key}") String apiKey,
-            @Value("${resend.from:onboarding@resend.dev}") String fromEmail) {
-        this.webClient = WebClient.builder()
-                .baseUrl("https://api.resend.com")
-                .defaultHeader("Authorization", "Bearer " + apiKey)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+            JavaMailSender mailSender,
+            @Value("${spring.mail.username}") String fromEmail) {
+        this.mailSender = mailSender;
         this.fromEmail = fromEmail;
     }
 
@@ -40,41 +35,20 @@ public class EmailService {
                 </html>
                 """.formatted(flowName, otp);
 
-        ResendEmailRequest request = ResendEmailRequest.builder()
-                .from(fromEmail)
-                .to(toEmail)
-                .subject(subject)
-                .html(htmlContent)
-                .build();
-
         try {
-            log.info("Sending OTP email via Resend to {}", toEmail);
-            webClient.post()
-                    .uri("/emails")
-                    .bodyValue(request)
-                    .retrieve()
-                    .onStatus(status -> status.isError(), clientResponse ->
-                            clientResponse.bodyToMono(String.class)
-                                    .flatMap(errorBody -> {
-                                        log.error("Resend API returned error status: {} - {}", clientResponse.statusCode(), errorBody);
-                                        return Mono.error(new RuntimeException("Resend API error: " + clientResponse.statusCode() + " - " + errorBody));
-                                    })
-                    )
-                    .toBodilessEntity()
-                    .block();
+            log.info("Sending OTP email via Brevo SMTP to {}", toEmail);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
             log.info("OTP email with subject '{}' successfully sent to {}", subject, toEmail);
         } catch (Exception e) {
-            log.error("Failed to deliver email via Resend API to {}", toEmail, e);
-            throw new RuntimeException("Failed to send OTP email via Resend: " + e.getMessage(), e);
+            log.error("Failed to deliver email via SMTP to {}", toEmail, e);
+            throw new RuntimeException("Failed to send OTP email via SMTP: " + e.getMessage(), e);
         }
-    }
-
-    @Data
-    @Builder
-    private static class ResendEmailRequest {
-        private String from;
-        private String to;
-        private String subject;
-        private String html;
     }
 }
