@@ -34,7 +34,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
       }}
       className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 group`}
     >
-      <div className={`flex max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-3 items-start`}>
+      <div className={`flex max-w-[92%] sm:max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-2 sm:gap-3 items-start`}>
         {/* Avatar */}
         <div className="flex-shrink-0">
           {isUser ? (
@@ -49,7 +49,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         {/* Bubble */}
         <div
           className={`
-            px-5 py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-250
+            px-4 py-3 md:px-5 md:py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-250 w-full max-w-full overflow-hidden break-words
             ${isUser 
               ? 'bg-slate-100 dark:bg-[#181818] text-slate-800 dark:text-[#F5F5F5] border border-slate-200/60 dark:border-[#2A2A2A] rounded-2xl rounded-tr-xs font-medium' 
               : 'bg-white dark:bg-[#0F0F0F] text-slate-800 dark:text-[#F5F5F5] border border-slate-200/60 dark:border-[#2A2A2A] rounded-2xl rounded-tl-xs'

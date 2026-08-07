@@ -700,17 +700,17 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-[#090909] dark:text-[#F5F5F5] font-sans overflow-hidden transition-colors duration-300">
+    <div className="flex h-dvh w-full bg-slate-50 text-slate-900 dark:bg-[#090909] dark:text-[#F5F5F5] font-sans overflow-hidden transition-colors duration-300 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       
       {/* Left Sidebar Navigation */}
       <aside className={`
         fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 dark:bg-[#0F0F0F] border-r border-slate-200/50 dark:border-[#2A2A2A]
-        flex flex-col transform transition-transform duration-300 ease-in-out
+        flex flex-col transform transition-transform duration-300 ease-in-out pb-[env(safe-area-inset-bottom)]
         md:static md:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Sidebar Header */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/50 dark:border-[#2A2A2A]">
+        <div className="h-16 pt-[env(safe-area-inset-top)] box-content flex items-center justify-between px-5 border-b border-slate-200/50 dark:border-[#2A2A2A] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Logo />
             <span className="font-bold text-base tracking-tight text-slate-800 dark:text-[#F5F5F5] select-none">Jarvis</span>
@@ -788,26 +788,26 @@ function App() {
       )}
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 relative">
         
         {/* Top Navbar */}
-        <header className="h-[72px] w-full flex items-center justify-between px-8 bg-white/75 dark:bg-[#090909]/75 border-b border-slate-200/50 dark:border-[#2A2A2A] backdrop-blur-xl z-30 transition-colors duration-300">
-          <div className="flex items-center gap-4">
+        <header className="h-[72px] pt-[env(safe-area-inset-top)] box-content w-full flex-shrink-0 flex items-center justify-between px-4 md:px-8 bg-white/75 dark:bg-[#090909]/75 border-b border-slate-200/50 dark:border-[#2A2A2A] backdrop-blur-xl z-30 transition-colors duration-300">
+          <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200/50 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="md:hidden w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-slate-200/50 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Menu className="w-4 h-4" />
             </button>
             {messages.length > 0 && (
-              <h1 className="text-xl font-semibold text-slate-855 dark:text-[#F5F5F5] select-none tracking-tight animate-fade-in">
+              <h1 className="text-sm sm:text-base md:text-xl font-semibold text-slate-855 dark:text-[#F5F5F5] select-none tracking-tight animate-fade-in truncate max-w-[120px] sm:max-w-[240px] md:max-w-xs lg:max-w-md">
                 {chats.find(c => c.id === activeChatId)?.title}
               </h1>
             )}
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-1.5 sm:gap-3.5">
             
             {/* Audio Synthesis Info & Controls */}
             {(lastInputMode === 'voice' || isSpeaking || isListening) && (
@@ -899,7 +899,7 @@ function App() {
                       }
                     `}</style>
                     <div 
-                      className="absolute right-0 mt-2.5 w-[280px] rounded-xl p-4 z-50 animate-profile-dropdown select-none border border-slate-200/50 dark:border-[#2A2A2A]"
+                      className="absolute right-0 mt-2.5 w-[280px] max-w-[calc(100vw-32px)] rounded-xl p-4 z-50 animate-profile-dropdown select-none border border-slate-200/50 dark:border-[#2A2A2A]"
                       style={{
                         backgroundColor: theme === 'dark' ? '#0F0F0F' : '#ffffff',
                         boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
@@ -981,7 +981,7 @@ function App() {
           <ChatContainer messages={messages} isTyping={isTyping} />
         </div>
         {/* Input box section */}
-        <div className="p-4 md:p-6 border-t border-slate-200/50 dark:border-[#2A2A2A] bg-white dark:bg-[#0F0F0F] transition-colors">
+        <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:p-6 flex-shrink-0 border-t border-slate-200/50 dark:border-[#2A2A2A] bg-white dark:bg-[#0F0F0F] transition-colors">
           <div className="max-w-3xl mx-auto flex flex-col gap-3">
             
             <form
@@ -1008,14 +1008,14 @@ function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={isListening ? "Listening... speak now" : "Message Jarvis..."}
-                className="flex-1 bg-transparent border-none outline-none px-3 py-2 text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] text-sm font-sans"
+                className="flex-1 bg-transparent border-none outline-none px-3 py-2 text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] text-base md:text-sm font-sans"
                 disabled={isTyping || isListening}
               />
 
               <button
                 type="submit"
                 disabled={!input.trim() || isTyping || isListening}
-                className="p-1.5 w-8 h-8 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-[#181818] dark:disabled:text-[#9A9A9A] rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center shadow-xs"
+                className="p-2 w-9 h-9 bg-gradient-to-r from-[#D4AF6A] to-[#C89B5C] text-[#090909] disabled:bg-slate-100 disabled:text-slate-300 dark:disabled:bg-[#181818] dark:disabled:text-[#9A9A9A] rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center shadow-xs flex-shrink-0"
                 title="Send command"
               >
                 <ArrowUp className="w-4 h-4" />
@@ -1038,9 +1038,9 @@ function App() {
           />
           
           {/* Modal Panel */}
-          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-xl shadow-xl z-10 overflow-hidden transition-all duration-200">
+          <div className="relative w-full max-w-md max-h-[90dvh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-xl shadow-xl z-10 overflow-hidden transition-all duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/50 dark:border-slate-800/60">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/50 dark:border-slate-800/60 flex-shrink-0">
               <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 font-sans tracking-tight">Settings</h3>
               <button 
                 onClick={() => setSettingsOpen(false)}
@@ -1051,7 +1051,7 @@ function App() {
             </div>
             
             {/* Body */}
-            <div className="p-5 space-y-5">
+            <div className="p-5 space-y-5 overflow-y-auto">
               
               {/* Theme Preference */}
               <div className="flex items-center justify-between">
@@ -1112,13 +1112,13 @@ function App() {
           />
 
           {/* Modal Panel */}
-          <div className="relative w-full max-w-md bg-white dark:bg-[#0F0F0F] border border-slate-200/50 dark:border-[#2A2A2A] rounded-[20px] shadow-2xl z-10 overflow-hidden transition-all duration-200 p-6 flex flex-col items-center gap-5">
+          <div className="relative w-full max-w-md max-h-[92dvh] overflow-y-auto bg-white dark:bg-[#0F0F0F] border border-slate-200/50 dark:border-[#2A2A2A] rounded-[20px] shadow-2xl z-10 transition-all duration-200 p-6 flex flex-col items-center gap-5 scrollbar-thin">
             
             {/* Close Button */}
             {authModalStep !== 'loading' && (
               <button 
                 onClick={() => setAuthModalOpen(false)}
-                className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-[#181818] border border-[#2A2A2A] hover:bg-[#1E1E1E] text-[#9A9A9A] hover:text-[#D4AF6A] transition-all duration-200 cursor-pointer"
+                className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-[#181818] border border-[#2A2A2A] hover:bg-[#1E1E1E] text-[#9A9A9A] hover:text-[#D4AF6A] transition-all duration-200 cursor-pointer z-20"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1169,7 +1169,7 @@ function App() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email address"
-                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -1193,7 +1193,7 @@ function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
-                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
@@ -1238,7 +1238,7 @@ function App() {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Enter your full name"
-                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -1249,7 +1249,7 @@ function App() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email address"
-                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -1261,7 +1261,7 @@ function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
-                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
@@ -1281,7 +1281,7 @@ function App() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Confirm your password"
-                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
@@ -1328,7 +1328,7 @@ function App() {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
                       placeholder="Enter verification code"
-                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-4 py-2 text-center text-base md:text-sm font-semibold tracking-[0.25em] text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
@@ -1372,7 +1372,7 @@ function App() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your registered email"
-                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-sm text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-3.5 py-2 text-base md:text-sm text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   {authError && <p className="text-xs text-red-500 font-semibold">{authError}</p>}
@@ -1408,7 +1408,7 @@ function App() {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
                       placeholder="Enter verification code"
-                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-4 py-2 text-center text-sm font-semibold tracking-[0.25em] text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                      className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg px-4 py-2 text-center text-base md:text-sm font-semibold tracking-[0.25em] text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -1420,7 +1420,7 @@ function App() {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Enter new password"
-                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-base md:text-sm text-slate-850 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
@@ -1440,7 +1440,7 @@ function App() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Confirm new password"
-                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
+                        className="w-full bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-lg pl-3.5 pr-10 py-2 text-base md:text-sm text-slate-800 dark:text-[#F5F5F5] placeholder-slate-400 dark:placeholder-[#8A8A8A] outline-none focus:border-[#D4AF6A] focus:ring-2 focus:ring-[#D4AF6A]/10 transition-all duration-200"
                       />
                       <button
                         type="button"
