@@ -59,9 +59,11 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const silenceTimeoutRef = useRef<any>(null);
+  const transcriptRef = useRef<string>('');
   const onSpeechResultRef = useRef(onSpeechResult);
 
   // Update ref to avoid stale closures in event handlers
@@ -69,7 +71,9 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
 
   if (!recognitionRef.current && SpeechRecognition) {
     const rec = new SpeechRecognition();
-    rec.continuous = true;
+    // Non-continuous recording: only capture voice input when the user explicitly triggers it.
+    // This resolves issues with mobile browsers and makes recording robust across platforms.
+    rec.continuous = false;
     rec.interimResults = true;
     // Using en-IN handles Indian accent English and code-switched Telugu words better natively
     rec.lang = 'en-IN';
@@ -153,8 +157,29 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
     setIsSpeaking(false);
   }, []);
 
+  const clearVoiceError = useCallback(() => {
+    setVoiceError(null);
+  }, []);
+
   const startListening = useCallback(() => {
-    if (!recognition) return;
+    setVoiceError(null);
+    transcriptRef.current = '';
+
+    if (!window.isSecureContext) {
+      const secureError = "Speech Recognition requires a secure context (HTTPS) on mobile devices. Please ensure the app is accessed over HTTPS.";
+      console.error("[useVoiceAssistant]", secureError);
+      setVoiceError(secureError);
+      setIsListening(false);
+      return;
+    }
+
+    if (!recognition) {
+      const supportError = "Speech Recognition is not supported or initialized in this browser.";
+      console.error("[useVoiceAssistant]", supportError);
+      setVoiceError(supportError);
+      setIsListening(false);
+      return;
+    }
     
     try {
       recognition.start();
@@ -165,23 +190,46 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
         for (let i = 0; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
         }
+        
+        transcriptRef.current = transcript.trim();
 
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
         }
 
+        // Auto-submit after 1.5s of silence as a fallback helper
         silenceTimeoutRef.current = setTimeout(() => {
-          if (transcript.trim()) {
-            onSpeechResultRef.current(transcript.trim());
+          const text = transcriptRef.current;
+          if (text) {
+            onSpeechResultRef.current(text);
+            transcriptRef.current = '';
           }
           recognition.stop();
-        }, 1500); // Wait 1.5 seconds after user stops speaking to send the query
+        }, 1500);
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: any) => {
+        console.error("[useVoiceAssistant] onerror event:", event);
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
+        }
+        
+        let errorMsg = "An error occurred during speech recognition.";
+        if (event.error === 'not-allowed') {
+          errorMsg = "Microphone access denied. Please grant microphone permission in your browser/system settings.";
+        } else if (event.error === 'service-not-allowed') {
+          errorMsg = "Speech recognition service is not allowed/supported. Please check your system settings or enable Siri/dictation.";
+        } else if (event.error === 'no-speech') {
+          errorMsg = "No speech detected. Please try speaking again.";
+        } else if (event.error) {
+          errorMsg = `Speech recognition error: ${event.error}`;
+        }
+        
+        // Show non-allowed and service-not-allowed errors in the UI.
+        // Avoid showing 'no-speech' error in a loud warning banner.
+        if (event.error !== 'no-speech') {
+          setVoiceError(errorMsg);
         }
         setIsListening(false);
       };
@@ -191,10 +239,19 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
         }
+        
+        // When recognition ends (either manually stopped or automatically on silence),
+        // we submit the final transcript if it exists.
+        const finalTranscript = transcriptRef.current;
+        if (finalTranscript) {
+          onSpeechResultRef.current(finalTranscript);
+          transcriptRef.current = '';
+        }
         setIsListening(false);
       };
-    } catch (e) {
-      console.error("Speech recognition error:", e);
+    } catch (e: any) {
+      console.error("[useVoiceAssistant] start exception:", e);
+      setVoiceError(e?.message || "Failed to start speech recognition.");
       setIsListening(false);
     }
   }, [recognition]);
@@ -226,6 +283,8 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
     startListening,
     stopListening,
     toggleMute,
-    hasRecognition: !!recognition
+    hasRecognition: !!recognition,
+    voiceError,
+    clearVoiceError
   };
 };

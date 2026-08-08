@@ -675,7 +675,9 @@ function App() {
     startListening,
     stopListening,
     toggleMute,
-    hasRecognition
+    hasRecognition,
+    voiceError,
+    clearVoiceError
   } = useVoiceAssistant(handleSpeechResult);
 
   // Speak assistant replies ONLY in voice mode
@@ -983,6 +985,12 @@ function App() {
           <div className="bg-red-500 text-white text-xs py-2 px-6 flex justify-between items-center z-20">
             <span>{dbError}</span>
             <button onClick={() => setDbError(null)} className="hover:text-red-200 font-bold ml-4">✕</button>
+          </div>
+        )}
+        {voiceError && (
+          <div className="bg-amber-500 dark:bg-amber-600 text-white text-xs py-2 px-6 flex justify-between items-center z-20 transition-all duration-300">
+            <span className="font-semibold flex items-center gap-1.5">🎤 {voiceError}</span>
+            <button onClick={clearVoiceError} className="hover:text-amber-200 font-bold ml-4 text-sm">✕</button>
           </div>
         )}
         {/* Messaging Box */}
