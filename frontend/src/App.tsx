@@ -776,7 +776,7 @@ function App() {
                   </div>
                   <button
                     onClick={(e) => handleDeleteChat(e, chat.id)}
-                    className="p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer md:hidden lg:block"
+                    className="opacity-100 p-1 text-slate-400 dark:text-[#9A9A9A] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer md:hidden lg:block"
                     title="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
