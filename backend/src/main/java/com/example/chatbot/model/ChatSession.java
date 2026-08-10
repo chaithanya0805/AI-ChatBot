@@ -36,8 +36,7 @@ public class ChatSession {
     @Column(nullable = false)
     private String title;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "session_id", referencedColumnName = "session_id")
+    @OneToMany(mappedBy = "chatSession", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("createdAt ASC")
     @Builder.Default
     private List<ChatMessage> messages = new ArrayList<>();

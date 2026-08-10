@@ -34,6 +34,12 @@ public class ChatMessage {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id", referencedColumnName = "session_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @ToString.Exclude
+    private ChatSession chatSession;
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {

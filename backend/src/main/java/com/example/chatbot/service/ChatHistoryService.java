@@ -107,6 +107,7 @@ public class ChatHistoryService {
                 for (int i = 0; i < session.getMessages().size(); i++) {
                     ChatMessage msg = session.getMessages().get(i);
                     msg.setId(null); // Clear ID to treat as a new insert
+                    msg.setChatSession(session); // Set the back-reference
                     if (msg.getCreatedAt() == null) {
                         msg.setCreatedAt(base.plusNanos(i * 1_000_000L));
                     }
