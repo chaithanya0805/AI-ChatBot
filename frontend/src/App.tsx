@@ -758,11 +758,10 @@ function App() {
             chats.map((chat) => {
               if (chat.messages.length === 0 && chat.id !== activeChatId) return null;
               
-              return (
                 <div
                   key={chat.id}
                   onClick={() => handleSelectChat(chat.id)}
-                  className={`group relative flex items-center justify-between pl-4.5 pr-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 text-xs border ${
+                  className={`group relative flex items-center justify-between pl-3 pr-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 text-xs border ${
                     activeChatId === chat.id
                       ? 'bg-white dark:bg-[#181818] text-slate-800 dark:text-[#F5F5F5] font-semibold border-slate-200/50 dark:border-[#2A2A2A] shadow-xs'
                       : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800 dark:text-[#9A9A9A] dark:hover:bg-[#1E1E1E] dark:hover:text-[#F5F5F5] border-transparent'
@@ -777,7 +776,7 @@ function App() {
                   </div>
                   <button
                     onClick={(e) => handleDeleteChat(e, chat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer md:hidden lg:block"
+                    className="p-1 text-slate-455 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer md:hidden lg:block"
                     title="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
