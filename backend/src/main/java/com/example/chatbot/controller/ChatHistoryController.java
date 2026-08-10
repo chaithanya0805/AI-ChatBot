@@ -125,22 +125,36 @@ public class ChatHistoryController {
     }
 
     @DeleteMapping
-    public Mono<ResponseEntity<Object>> deleteAllChats(Principal principal) {
+    public Mono<ResponseEntity<Object>> deleteAllChats(Principal principal, org.springframework.web.server.ServerWebExchange exchange) {
+        String requestId = exchange.getAttributeOrDefault("requestId", "UNKNOWN");
+        String threadName = Thread.currentThread().getName();
+        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered deleteAllChats. UserPrincipal: {}", 
+                requestId, threadName, principal != null ? principal.getName() : "null");
+
         if (principal == null) {
+            log.warn("[Controller] [REQ: {}] [THREAD: {}] Unauthorized access attempt to deleteAllChats (Principal is null)", requestId, threadName);
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
 
         return Mono.fromCallable(() -> {
+            String callbackThreadName = Thread.currentThread().getName();
+            log.info("[Controller] [REQ: {}] [THREAD: {}] Executing deleteAllChats Callable", requestId, callbackThreadName);
             String email = principal.getName();
             User user = userService.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("User not found"));
             chatHistoryService.deleteAllChatsOfUser(user);
+            log.info("[Controller] [REQ: {}] [THREAD: {}] deleteAllChats Callable finished. Returning 200 OK", requestId, callbackThreadName);
             return ResponseEntity.<Object>ok().build();
         })
         .subscribeOn(Schedulers.boundedElastic())
-        .onErrorResume(e -> Mono.just(
-                ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .body((Object) e.getMessage())
-        ));
+        .onErrorResume(e -> {
+            String errorThreadName = Thread.currentThread().getName();
+            log.error("[Controller] [REQ: {}] [THREAD: {}] Exception in deleteAllChats WebFlux pipeline: {} - {}", 
+                    requestId, errorThreadName, e.getClass().getName(), e.getMessage(), e);
+            return Mono.just(
+                    ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                            .body((Object) e.getMessage())
+            );
+        });
     }
 }
