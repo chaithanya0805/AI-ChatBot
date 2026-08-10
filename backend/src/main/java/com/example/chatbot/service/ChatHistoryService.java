@@ -32,6 +32,32 @@ public class ChatHistoryService {
 
     @Transactional
     public ChatSession saveChatSession(ChatSession session, User user) {
+        return saveChatSession(session, user, java.util.UUID.randomUUID().toString());
+    }
+
+    @Transactional
+    public ChatSession saveChatSession(ChatSession session, User user, String requestId) {
+        String threadName = Thread.currentThread().getName();
+        boolean isTxActive = org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive();
+        log.info("[Service] [REQ: {}] [THREAD: {}] Entered saveChatSession. SessionId: {}, UserId: {}, TxActive: {}", 
+                requestId, threadName, session.getSessionId(), user.getId(), isTxActive);
+
+        if (isTxActive) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for saveChatSession COMMITTED successfully", requestId, Thread.currentThread().getName());
+                    }
+                    @Override
+                    public void afterCompletion(int status) {
+                        String statusStr = (status == STATUS_COMMITTED) ? "COMMITTED" : (status == STATUS_ROLLED_BACK ? "ROLLED_BACK" : "UNKNOWN");
+                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for saveChatSession completed with status: {}", requestId, Thread.currentThread().getName(), statusStr);
+                    }
+                }
+            );
+        }
+
         try {
             boolean isNewSession =
                     session.getSessionId() == null ||
@@ -47,14 +73,16 @@ public class ChatHistoryService {
                 session.setTimestamp(now);
             } else {
                 // EXISTING CHAT -> UPDATE
+                log.info("[Service] [REQ: {}] [THREAD: {}] Before findBySessionId", requestId, threadName);
                 ChatSession existing = chatSessionRepository
                         .findBySessionId(session.getSessionId())
                         .orElseThrow(() -> new RuntimeException("Chat session not found"));
+                log.info("[Service] [REQ: {}] [THREAD: {}] After findBySessionId", requestId, threadName);
 
                 // Verify Ownership
                 if (existing.getUser() == null || !existing.getUser().getId().equals(user.getId())) {
-                    log.warn("Access denied: User {} tried to access session {} owned by {}", 
-                            user.getEmail(), session.getSessionId(), 
+                    log.warn("[Service] [REQ: {}] [THREAD: {}] Access denied: User {} tried to access session {} owned by {}", 
+                            requestId, threadName, user.getEmail(), session.getSessionId(), 
                             existing.getUser() != null ? existing.getUser().getEmail() : "null");
                     throw new AccessDeniedException("Unauthorized access to this chat session.");
                 }
@@ -85,36 +113,81 @@ public class ChatHistoryService {
                 }
             }
 
-            return chatSessionRepository.save(session);
+            log.info("[Service] [REQ: {}] [THREAD: {}] Before chatSessionRepository.save", requestId, threadName);
+            ChatSession saved = chatSessionRepository.save(session);
+            log.info("[Service] [REQ: {}] [THREAD: {}] After chatSessionRepository.save", requestId, threadName);
+            return saved;
 
         } catch (AccessDeniedException ade) {
+            log.warn("[Service] [REQ: {}] [THREAD: {}] AccessDeniedException in saveChatSession", requestId, threadName);
             throw ade;
         } catch (Exception e) {
-            log.error("Database error while saving chat session for user: {}", user.getEmail(), e);
+            java.io.StringWriter sw = new java.io.StringWriter();
+            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+            e.printStackTrace(pw);
+            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(e);
+            log.error("[Service] [REQ: {}] [THREAD: {}] Database error while saving chat session for user: {}. Exception: {}. Root cause: {}. Stack trace: \n{}", 
+                    requestId, threadName, user.getEmail(), e.getClass().getName(), rootCause.getClass().getName() + ": " + rootCause.getMessage(), sw.toString(), e);
             throw new RuntimeException("Database is currently unavailable. Chat session could not be saved.");
         }
     }
 
     @Transactional
     public void deleteChatSession(String sessionId, User user) {
+        deleteChatSession(sessionId, user, java.util.UUID.randomUUID().toString());
+    }
+
+    @Transactional
+    public void deleteChatSession(String sessionId, User user, String requestId) {
+        String threadName = Thread.currentThread().getName();
+        boolean isTxActive = org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive();
+        log.info("[Service] [REQ: {}] [THREAD: {}] Entered deleteChatSession. SessionId: {}, UserId: {}, TxActive: {}", 
+                requestId, threadName, sessionId, user.getId(), isTxActive);
+
+        if (isTxActive) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for deleteChatSession COMMITTED successfully", requestId, Thread.currentThread().getName());
+                    }
+                    @Override
+                    public void afterCompletion(int status) {
+                        String statusStr = (status == STATUS_COMMITTED) ? "COMMITTED" : (status == STATUS_ROLLED_BACK ? "ROLLED_BACK" : "UNKNOWN");
+                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for deleteChatSession completed with status: {}", requestId, Thread.currentThread().getName(), statusStr);
+                    }
+                }
+            );
+        }
+
         try {
+            log.info("[Service] [REQ: {}] [THREAD: {}] Before findBySessionId", requestId, threadName);
             ChatSession existing = chatSessionRepository
                     .findBySessionId(sessionId)
                     .orElseThrow(() -> new RuntimeException("Chat session not found"));
+            log.info("[Service] [REQ: {}] [THREAD: {}] After findBySessionId", requestId, threadName);
 
             // Verify Ownership
             if (existing.getUser() == null || !existing.getUser().getId().equals(user.getId())) {
-                log.warn("Access denied: User {} tried to delete session {} owned by {}", 
-                        user.getEmail(), sessionId, 
+                log.warn("[Service] [REQ: {}] [THREAD: {}] Access denied: User {} tried to delete session {} owned by {}", 
+                        requestId, threadName, user.getEmail(), sessionId, 
                         existing.getUser() != null ? existing.getUser().getEmail() : "null");
                 throw new AccessDeniedException("Unauthorized access to this chat session.");
             }
 
+            log.info("[Service] [REQ: {}] [THREAD: {}] Before chatSessionRepository.delete", requestId, threadName);
             chatSessionRepository.delete(existing);
+            log.info("[Service] [REQ: {}] [THREAD: {}] After chatSessionRepository.delete", requestId, threadName);
         } catch (AccessDeniedException ade) {
+            log.warn("[Service] [REQ: {}] [THREAD: {}] AccessDeniedException in deleteChatSession", requestId, threadName);
             throw ade;
         } catch (Exception e) {
-            log.error("Database error while deleting chat session for user: {}", user.getEmail(), e);
+            java.io.StringWriter sw = new java.io.StringWriter();
+            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+            e.printStackTrace(pw);
+            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(e);
+            log.error("[Service] [REQ: {}] [THREAD: {}] Database error while deleting chat session for user: {}. Exception: {}. Root cause: {}. Stack trace: \n{}", 
+                    requestId, threadName, user.getEmail(), e.getClass().getName(), rootCause.getClass().getName() + ": " + rootCause.getMessage(), sw.toString(), e);
             throw new RuntimeException("Database is currently unavailable. Chat session could not be deleted.");
         }
     }

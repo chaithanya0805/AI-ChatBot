@@ -33,10 +33,18 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint((exchange, ex) -> Mono.fromRunnable(() -> {
+                            String requestId = exchange.getAttributeOrDefault("requestId", "UNKNOWN");
+                            org.slf4j.LoggerFactory.getLogger(SecurityConfig.class).error(
+                                    "[SecurityConfig] [REQ: {}] [THREAD: {}] Authentication failed (AuthenticationEntryPoint called): {} - {}", 
+                                    requestId, Thread.currentThread().getName(), ex.getClass().getName(), ex.getMessage(), ex);
                             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                             exchange.getResponse().getHeaders().setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
                         }))
                         .accessDeniedHandler((exchange, ex) -> Mono.fromRunnable(() -> {
+                            String requestId = exchange.getAttributeOrDefault("requestId", "UNKNOWN");
+                            org.slf4j.LoggerFactory.getLogger(SecurityConfig.class).error(
+                                    "[SecurityConfig] [REQ: {}] [THREAD: {}] Access denied (AccessDeniedHandler called): {} - {}", 
+                                    requestId, Thread.currentThread().getName(), ex.getClass().getName(), ex.getMessage(), ex);
                             exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
                             exchange.getResponse().getHeaders().setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
                         }))
