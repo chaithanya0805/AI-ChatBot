@@ -110,7 +110,7 @@ public class ChatHistoryService {
                 throw new AccessDeniedException("Unauthorized access to this chat session.");
             }
 
-            chatSessionRepository.deleteBySessionId(sessionId);
+            chatSessionRepository.delete(existing);
         } catch (AccessDeniedException ade) {
             throw ade;
         } catch (Exception e) {
