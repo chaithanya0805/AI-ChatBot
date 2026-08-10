@@ -176,6 +176,11 @@ public class ChatHistoryService {
                 throw new AccessDeniedException("Unauthorized access to this chat session.");
             }
 
+            if (user.getChatSessions() != null) {
+                user.getChatSessions().remove(existing);
+            }
+            existing.setUser(null);
+
             log.info("[Service] [REQ: {}] [THREAD: {}] Before chatSessionRepository.delete", requestId, threadName);
             chatSessionRepository.delete(existing);
             log.info("[Service] [REQ: {}] [THREAD: {}] After chatSessionRepository.delete", requestId, threadName);
