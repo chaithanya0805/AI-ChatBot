@@ -770,13 +770,13 @@ function App() {
                   {activeChatId === chat.id && (
                     <div className="absolute left-0 top-[25%] bottom-[25%] w-[3px] bg-[#D4AF6A] rounded-r-md" />
                   )}
-                  <div className="flex items-center gap-2 overflow-hidden w-full justify-center lg:justify-start">
+                  <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0 justify-start">
                     <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-75 text-[#D4AF6A]" />
-                    <span className="truncate md:hidden lg:inline">{chat.title}</span>
+                    <span className="truncate inline">{chat.title}</span>
                   </div>
                   <button
                     onClick={(e) => handleDeleteChat(e, chat.id)}
-                    className="opacity-100 p-1 text-slate-400 dark:text-[#9A9A9A] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer md:hidden lg:block"
+                    className="p-1 text-slate-400 dark:text-[#9A9A9A] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-all duration-150 cursor-pointer flex-shrink-0"
                     title="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
