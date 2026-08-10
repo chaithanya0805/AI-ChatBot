@@ -56,6 +56,7 @@ public class OtpService {
 
         // 4. Generate 6-digit OTP
         String rawOtp = String.format("%06d", new Random().nextInt(900000) + 100000);
+        log.info("GENERATED OTP FOR EMAIL {}: {}", email, rawOtp);
 
         // 5. Hash OTP and Save to DB
         String hashedOtp = passwordEncoder.encode(rawOtp);
