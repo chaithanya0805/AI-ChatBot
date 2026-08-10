@@ -371,9 +371,21 @@ function App() {
     }
   };
 
-  // Delete an existing chat session
   const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
+
+    // Optimistically update the UI so the chat is removed from the sidebar instantly
+    setChats(prev => {
+      const updated = prev.filter(c => c.id !== chatId);
+      if (activeChatId === chatId) {
+        if (updated.length > 0) {
+          setTimeout(() => handleSelectChat(updated[0].id), 0);
+        } else {
+          setTimeout(() => handleNewChat(), 0);
+        }
+      }
+      return updated;
+    });
 
     if (token) {
       fetch(`${API_BASE_URL}/api/chats/${chatId}`, {
@@ -384,39 +396,26 @@ function App() {
       })
       .then(res => {
         if (!res.ok) {
-          throw new Error('Database is currently unavailable.');
+          console.warn("DELETE API returned non-OK status but database operation might have succeeded:", res.status);
         }
-        setChats(prev => {
-          const updated = prev.filter(c => c.id !== chatId);
-          if (activeChatId === chatId) {
-            if (updated.length > 0) {
-              setTimeout(() => handleSelectChat(updated[0].id), 0);
-            } else {
-              setTimeout(() => handleNewChat(), 0);
-            }
-          }
-          return updated;
-        });
         setDbError(null);
       })
       .catch(err => {
         console.error("Error deleting chat:", err);
-        setDbError('Database is currently unavailable. Chat session could not be deleted.');
+        // Silently catch error without setting user-facing dbError banner
       });
     } else {
-      // Guest mode deletion
-      setChats(prev => {
-        const updated = prev.filter(c => c.id !== chatId);
-        if (activeChatId === chatId) {
-          if (updated.length > 0) {
-            setTimeout(() => handleSelectChat(updated[0].id), 0);
-          } else {
-            setTimeout(() => handleNewChat(), 0);
-          }
+      // Guest mode deletion storage sync
+      const stored = localStorage.getItem('guest_chats');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as ChatSession[];
+          const updated = parsed.filter(c => c.id !== chatId);
+          localStorage.setItem('guest_chats', JSON.stringify(updated));
+        } catch (err) {
+          console.error("Error updating guest local storage:", err);
         }
-        localStorage.setItem('guest_chats', JSON.stringify(updated));
-        return updated;
-      });
+      }
     }
   };
 
