@@ -757,7 +757,7 @@ function App() {
           ) : (
             chats.map((chat) => {
               if (chat.messages.length === 0 && chat.id !== activeChatId) return null;
-              
+              return (
                 <div
                   key={chat.id}
                   onClick={() => handleSelectChat(chat.id)}
