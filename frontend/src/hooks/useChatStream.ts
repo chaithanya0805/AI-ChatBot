@@ -87,8 +87,20 @@ export const useChatStream = () => {
         } else {
           content = "⚠️ Jarvis is temporarily unavailable. Please try again in a few moments.";
         }
+        const assistantMsg: Message = {
+          id: assistantMsgId,
+          role: 'assistant',
+          content
+        };
+        updateMessagesState((prev) => [...prev, assistantMsg]);
+        setIsTyping(false);
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null;
+        }
+        return { finalMessages: [...messagesRef.current, assistantMsg], completed: false };
       } else {
         streamStarted = true;
+        console.log("[ChatStream] Fetch request succeeded (200 OK). Starting stream read...");
         // Append an empty assistant message slot to update progressively
         updateMessagesState((prev) => [
           ...prev,
@@ -106,9 +118,13 @@ export const useChatStream = () => {
           try {
             while (true) {
               const { value, done } = await reader.read();
-              if (done) break;
+              if (done) {
+                console.log("[ChatStream] Stream reading finished naturally.");
+                break;
+              }
 
               const chunk = decoder.decode(value, { stream: true });
+              console.log("[ChatStream] Received chunk size:", value.length, "decoded:", chunk);
               content += chunk;
 
               updateMessagesState((prev) => {

@@ -116,6 +116,7 @@ public class GeminiService {
         );
 
         int keyIndex = keySlot.getIndex();
+        log.info("[Gemini] stream request started using key slot {}", keyIndex);
 
         return webClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -127,10 +128,19 @@ public class GeminiService {
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(body)
                 .exchangeToFlux(response -> {
+                    log.info("[Gemini] stream response status: {}", response.statusCode());
                     if (response.statusCode().is2xxSuccessful()) {
                         Flux<DataBuffer> bodyFlux = response.bodyToFlux(DataBuffer.class);
+                        java.util.concurrent.atomic.AtomicInteger chunkCount = new java.util.concurrent.atomic.AtomicInteger(0);
+                        java.util.concurrent.atomic.AtomicInteger charCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
                         return GeminiStreamChunkParser.parseSseStream(bodyFlux)
-                                .doOnComplete(() -> log.debug("Gemini stream completed using key {}.", keyIndex));
+                                .doOnNext(chunk -> {
+                                    chunkCount.incrementAndGet();
+                                    charCount.addAndGet(chunk.length());
+                                })
+                                .doOnComplete(() -> log.info("[Gemini] stream completed. Chunks: {}, characters: {}", 
+                                        chunkCount.get(), charCount.get()));
                     }
 
                     return response.bodyToMono(String.class)
