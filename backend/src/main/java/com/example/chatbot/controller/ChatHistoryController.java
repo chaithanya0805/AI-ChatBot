@@ -1,5 +1,6 @@
 package com.example.chatbot.controller;
 
+import com.example.chatbot.exception.UserNotFoundException;
 import com.example.chatbot.model.ChatSession;
 import com.example.chatbot.model.User;
 import com.example.chatbot.service.ChatHistoryService;
@@ -7,7 +8,6 @@ import com.example.chatbot.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -34,21 +34,18 @@ public class ChatHistoryController {
         return Mono.fromCallable(() -> {
             String email = principal.getName();
             User user = userService.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new UserNotFoundException(email));
             return ResponseEntity.<Object>ok(chatHistoryService.getAllChatsOfUser(user));
         })
         .subscribeOn(Schedulers.boundedElastic())
-        .onErrorResume(e -> Mono.just(
-                ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .body((Object) e.getMessage())
-        ));
+        .onErrorResume(e -> Mono.just(ChatHistoryErrorMapper.toResponse(e)));
     }
 
     @PostMapping
     public Mono<ResponseEntity<Object>> saveChat(Principal principal, @RequestBody ChatSession session, org.springframework.web.server.ServerWebExchange exchange) {
         String requestId = exchange.getAttributeOrDefault("requestId", "UNKNOWN");
         String threadName = Thread.currentThread().getName();
-        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered saveChat. SessionId: {}, UserPrincipal: {}", 
+        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered saveChat. SessionId: {}, UserPrincipal: {}",
                 requestId, threadName, session.getSessionId(), principal != null ? principal.getName() : "null");
 
         if (principal == null) {
@@ -61,26 +58,18 @@ public class ChatHistoryController {
             log.info("[Controller] [REQ: {}] [THREAD: {}] Executing saveChat Callable", requestId, callbackThreadName);
             String email = principal.getName();
             User user = userService.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
+                    .orElseThrow(() -> new UserNotFoundException(email));
+
             ChatSession saved = chatHistoryService.saveChatSession(session, user, requestId);
-            
+
             log.info("[Controller] [REQ: {}] [THREAD: {}] saveChat Callable finished. Returning 200 OK", requestId, callbackThreadName);
             return ResponseEntity.<Object>ok(saved);
         })
         .subscribeOn(Schedulers.boundedElastic())
         .onErrorResume(e -> {
-            String errorThreadName = Thread.currentThread().getName();
-            log.error("[Controller] [REQ: {}] [THREAD: {}] Exception in saveChat WebFlux pipeline: {} - {}", 
-                    requestId, errorThreadName, e.getClass().getName(), e.getMessage(), e);
-            HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
-            if (e instanceof AccessDeniedException) {
-                status = HttpStatus.FORBIDDEN;
-            }
-            return Mono.just(
-                    ResponseEntity.status(status)
-                            .body((Object) e.getMessage())
-            );
+            log.error("[Controller] [REQ: {}] Exception in saveChat: {} - {}",
+                    requestId, e.getClass().getName(), e.getMessage(), e);
+            return Mono.just(ChatHistoryErrorMapper.toResponse(e));
         });
     }
 
@@ -88,7 +77,7 @@ public class ChatHistoryController {
     public Mono<ResponseEntity<Object>> deleteChat(Principal principal, @PathVariable String id, org.springframework.web.server.ServerWebExchange exchange) {
         String requestId = exchange.getAttributeOrDefault("requestId", "UNKNOWN");
         String threadName = Thread.currentThread().getName();
-        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered deleteChat. SessionId: {}, UserPrincipal: {}", 
+        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered deleteChat. SessionId: {}, UserPrincipal: {}",
                 requestId, threadName, id, principal != null ? principal.getName() : "null");
 
         if (principal == null) {
@@ -101,26 +90,18 @@ public class ChatHistoryController {
             log.info("[Controller] [REQ: {}] [THREAD: {}] Executing deleteChat Callable", requestId, callbackThreadName);
             String email = principal.getName();
             User user = userService.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
+                    .orElseThrow(() -> new UserNotFoundException(email));
+
             chatHistoryService.deleteChatSession(id, user, requestId);
-            
+
             log.info("[Controller] [REQ: {}] [THREAD: {}] deleteChat Callable finished. Returning 200 OK", requestId, callbackThreadName);
             return ResponseEntity.<Object>ok().build();
         })
         .subscribeOn(Schedulers.boundedElastic())
         .onErrorResume(e -> {
-            String errorThreadName = Thread.currentThread().getName();
-            log.error("[Controller] [REQ: {}] [THREAD: {}] Exception in deleteChat WebFlux pipeline: {} - {}", 
-                    requestId, errorThreadName, e.getClass().getName(), e.getMessage(), e);
-            HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
-            if (e instanceof AccessDeniedException) {
-                status = HttpStatus.FORBIDDEN;
-            }
-            return Mono.just(
-                    ResponseEntity.status(status)
-                            .body((Object) e.getMessage())
-            );
+            log.error("[Controller] [REQ: {}] Exception in deleteChat: {} - {}",
+                    requestId, e.getClass().getName(), e.getMessage(), e);
+            return Mono.just(ChatHistoryErrorMapper.toResponse(e));
         });
     }
 
@@ -128,7 +109,7 @@ public class ChatHistoryController {
     public Mono<ResponseEntity<Object>> deleteAllChats(Principal principal, org.springframework.web.server.ServerWebExchange exchange) {
         String requestId = exchange.getAttributeOrDefault("requestId", "UNKNOWN");
         String threadName = Thread.currentThread().getName();
-        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered deleteAllChats. UserPrincipal: {}", 
+        log.info("[Controller] [REQ: {}] [THREAD: {}] Entered deleteAllChats. UserPrincipal: {}",
                 requestId, threadName, principal != null ? principal.getName() : "null");
 
         if (principal == null) {
@@ -141,20 +122,16 @@ public class ChatHistoryController {
             log.info("[Controller] [REQ: {}] [THREAD: {}] Executing deleteAllChats Callable", requestId, callbackThreadName);
             String email = principal.getName();
             User user = userService.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new UserNotFoundException(email));
             chatHistoryService.deleteAllChatsOfUser(user);
             log.info("[Controller] [REQ: {}] [THREAD: {}] deleteAllChats Callable finished. Returning 200 OK", requestId, callbackThreadName);
             return ResponseEntity.<Object>ok().build();
         })
         .subscribeOn(Schedulers.boundedElastic())
         .onErrorResume(e -> {
-            String errorThreadName = Thread.currentThread().getName();
-            log.error("[Controller] [REQ: {}] [THREAD: {}] Exception in deleteAllChats WebFlux pipeline: {} - {}", 
-                    requestId, errorThreadName, e.getClass().getName(), e.getMessage(), e);
-            return Mono.just(
-                    ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                            .body((Object) e.getMessage())
-            );
+            log.error("[Controller] [REQ: {}] Exception in deleteAllChats: {} - {}",
+                    requestId, e.getClass().getName(), e.getMessage(), e);
+            return Mono.just(ChatHistoryErrorMapper.toResponse(e));
         });
     }
 }

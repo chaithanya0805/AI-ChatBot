@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatContainer } from './components/ChatContainer';
-import { useChatStream, Message } from './hooks/useChatStream';
+import { useChatStream } from './hooks/useChatStream';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
 import { API_BASE_URL } from './config';
+import {
+  ChatSession,
+  getChatApiErrorMessage,
+  isBackendSessionId,
+  messagesContentEqual,
+  normalizeChatSession,
+  normalizeChatSessions,
+} from './utils/chatApi';
 import { 
   Plus, 
   Trash2, 
@@ -25,13 +33,6 @@ import {
 
 type InputMode = 'text' | 'voice';
 type AuthModalStep = 'signin' | 'signup' | 'verify-signup' | 'forgot-password' | 'reset-password' | 'loading';
-
-interface ChatSession {
-  id: string;
-  title: string;
-  messages: Message[];
-  timestamp: number;
-}
 
 // Minimal modern logo lettermark
 const Logo = () => (
@@ -83,6 +84,13 @@ function App() {
 
   const [dbError, setDbError] = useState<string | null>(null);
   const isSwitchingChat = useRef(false);
+  const isDeletingRef = useRef(false);
+  const chatsRef = useRef<ChatSession[]>([]);
+  const saveAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
 
   // 1. Auto-login on mount
   useEffect(() => {
@@ -198,14 +206,15 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       })
-      .then(res => {
+      .then(async res => {
         if (!res.ok) {
-          throw new Error('Database is currently unavailable.');
+          const msg = await getChatApiErrorMessage(res, 'load');
+          throw new Error(msg);
         }
         return res.json();
       })
       .then(data => {
-        const parsed = data as ChatSession[];
+        const parsed = normalizeChatSessions(data as ChatSession[]);
         setChats(parsed);
         setDbError(null);
         if (parsed.length > 0) {
@@ -221,7 +230,7 @@ function App() {
       })
       .catch(err => {
         console.error("Error loading chat history:", err);
-        setDbError('Database is currently unavailable. Chat history could not be loaded.');
+        setDbError(err.message || 'Failed to load chat history.');
       });
     } else {
       // Guest mode load
@@ -252,72 +261,94 @@ function App() {
 
   // Save changes to current chat messages
   useEffect(() => {
-    if (isSwitchingChat.current || !activeChatId) return;
+    if (isSwitchingChat.current || isDeletingRef.current || !activeChatId) return;
 
-    const currentChat = chats.find(c => c.id === activeChatId);
+    const currentChat = chatsRef.current.find(c => c.id === activeChatId);
     if (!currentChat) return;
 
-    const messagesChanged = JSON.stringify(currentChat.messages) !== JSON.stringify(messages);
+    if (messagesContentEqual(currentChat.messages, messages)) return;
 
-    if (messagesChanged) {
-      let newTitle = currentChat.title;
-      // Generate a readable title from the first user message if it's currently default
-      if (currentChat.title === 'New Chat' && messages.length > 0) {
-        const firstUserMsg = messages.find(m => m.role === 'user');
-        if (firstUserMsg) {
-          newTitle = firstUserMsg.content.slice(0, 26) + (firstUserMsg.content.length > 26 ? '...' : '');
-        }
+    let newTitle = currentChat.title;
+    if (currentChat.title === 'New Chat' && messages.length > 0) {
+      const firstUserMsg = messages.find(m => m.role === 'user');
+      if (firstUserMsg) {
+        newTitle = firstUserMsg.content.slice(0, 26) + (firstUserMsg.content.length > 26 ? '...' : '');
       }
+    }
 
-      const updatedChat: ChatSession = {
-        ...currentChat,
-        title: newTitle,
-        messages: messages,
-        timestamp: Date.now()
-      };
+    const updatedChat: ChatSession = {
+      ...currentChat,
+      title: newTitle,
+      messages: messages,
+      timestamp: Date.now()
+    };
 
-      if (token) {
-        fetch(`${API_BASE_URL}/api/chats`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(updatedChat)
-        })
-        .then(res => {
-          if (!res.ok) {
-            throw new Error('Database is currently unavailable.');
-          }
-          return res.json();
-        })
-        .then((savedChat: ChatSession) => {
+    if (token) {
+      if (!isBackendSessionId(activeChatId)) return;
+
+      setChats(prev => prev.map(c => c.id === activeChatId ? updatedChat : c));
+
+      saveAbortRef.current?.abort();
+      const controller = new AbortController();
+      saveAbortRef.current = controller;
+
+      fetch(`${API_BASE_URL}/api/chats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedChat),
+        signal: controller.signal
+      })
+      .then(async res => {
+        if (!res.ok) {
+          const msg = await getChatApiErrorMessage(res, 'save');
+          throw new Error(msg);
+        }
+        return res.json();
+      })
+      .then((savedChat: ChatSession) => {
+        if (controller.signal.aborted) return;
+
+        const normalized = normalizeChatSession(savedChat);
+        const previousActiveId = activeChatId;
+
+        setChats(prev => prev.map(c =>
+          c.id === previousActiveId || c.id === normalized.id ? normalized : c
+        ));
+
+        if (previousActiveId !== normalized.id) {
+          setActiveChatId(normalized.id);
+        }
+
+        if (!messagesContentEqual(messages, normalized.messages)) {
           isSwitchingChat.current = true;
-          setChats(prev => prev.map(c => c.id === activeChatId ? savedChat : c));
-          setActiveChatId(savedChat.id);
-          console.log("[setMessages] Invoked with savedChat.messages:", savedChat.messages);
-          setMessages(savedChat.messages);
-          setDbError(null);
+          setMessages(normalized.messages);
           setTimeout(() => {
             isSwitchingChat.current = false;
           }, 50);
-        })
-        .catch(err => {
-          console.error("Error saving chat session to DB:", err);
-          setDbError('Database is currently unavailable. Chat session could not be saved.');
-          setChats(prev => prev.map(c => c.id === activeChatId ? updatedChat : c));
-        });
-      } else {
-        // Guest mode state sync
-        const updatedChats = chats.map(c => c.id === activeChatId ? updatedChat : c);
-        setChats(updatedChats);
-        localStorage.setItem('guest_chats', JSON.stringify(updatedChats));
-      }
+        }
+
+        setDbError(null);
+      })
+      .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        console.error("Error saving chat session to DB:", err);
+        setDbError(err.message || 'Failed to save chat session.');
+        setChats(prev => prev.map(c => c.id === activeChatId ? currentChat : c));
+      });
+    } else {
+      const updatedChats = chatsRef.current.map(c => c.id === activeChatId ? updatedChat : c);
+      setChats(updatedChats);
+      localStorage.setItem('guest_chats', JSON.stringify(updatedChats));
     }
-  }, [messages, activeChatId, chats, token]);
+  }, [messages, activeChatId, token]);
 
   const handleNewChatForToken = (tokenVal: string | null) => {
     isSwitchingChat.current = true;
+    saveAbortRef.current?.abort();
+
     const tempChat: ChatSession = {
       id: crypto.randomUUID(),
       title: "New Chat",
@@ -334,21 +365,28 @@ function App() {
         },
         body: JSON.stringify(tempChat)
       })
-      .then((res) => {
-        if (!res.ok) throw new Error("Database Error");
+      .then(async (res) => {
+        if (!res.ok) {
+          const msg = await getChatApiErrorMessage(res, 'save');
+          throw new Error(msg);
+        }
         return res.json();
       })
       .then((savedChat: ChatSession) => {
-        setChats(prev => [savedChat, ...prev]);
-        setActiveChatId(savedChat.id);
+        const normalized = normalizeChatSession(savedChat);
+        setChats(prev => [normalized, ...prev.filter(c => c.id !== normalized.id)]);
+        setActiveChatId(normalized.id);
         setMessages([]);
         setSidebarOpen(false);
         setDbError(null);
         isSwitchingChat.current = false;
+        isDeletingRef.current = false;
       })
       .catch((err) => {
         console.error(err);
-        setDbError("Database is currently unavailable. Chat session could not be saved.");
+        setDbError(err.message || 'Failed to create chat session.');
+        isSwitchingChat.current = false;
+        isDeletingRef.current = false;
       });
     } else {
       // Guest mode setup
@@ -386,36 +424,56 @@ function App() {
   const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
 
-    // Optimistically update the UI so the chat is removed from the sidebar instantly
+    isDeletingRef.current = true;
+    isSwitchingChat.current = true;
+    saveAbortRef.current?.abort();
+
+    const wasActive = activeChatId === chatId;
+
     setChats(prev => {
       const updated = prev.filter(c => c.id !== chatId);
-      if (activeChatId === chatId) {
+      if (wasActive) {
         if (updated.length > 0) {
           setTimeout(() => handleSelectChat(updated[0].id), 0);
         } else {
           setTimeout(() => handleNewChat(), 0);
         }
+      } else {
+        setTimeout(() => {
+          isSwitchingChat.current = false;
+          isDeletingRef.current = false;
+        }, 50);
       }
       return updated;
     });
 
-    if (token) {
+    if (token && isBackendSessionId(chatId)) {
       fetch(`${API_BASE_URL}/api/chats/${chatId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      .then(res => {
-        if (!res.ok) {
-          console.warn("DELETE API returned non-OK status but database operation might have succeeded:", res.status);
+      .then(async res => {
+        if (!res.ok && res.status !== 404) {
+          const msg = await getChatApiErrorMessage(res, 'delete');
+          setDbError(msg);
+          return;
         }
         setDbError(null);
       })
       .catch(err => {
         console.error("Error deleting chat:", err);
-        // Silently catch error without setting user-facing dbError banner
+        setDbError('Failed to delete chat session. Please try again.');
+      })
+      .finally(() => {
+        setTimeout(() => {
+          isDeletingRef.current = false;
+        }, wasActive ? 100 : 0);
       });
+    } else if (token) {
+      isDeletingRef.current = false;
+      isSwitchingChat.current = false;
     } else {
       // Guest mode deletion storage sync
       const stored = localStorage.getItem('guest_chats');
@@ -428,21 +486,28 @@ function App() {
           console.error("Error updating guest local storage:", err);
         }
       }
+      setTimeout(() => {
+        isDeletingRef.current = false;
+      }, wasActive ? 100 : 0);
     }
   };
 
   const handleClearAllChats = () => {
     if (token) {
       isSwitchingChat.current = true;
+      isDeletingRef.current = true;
+      saveAbortRef.current?.abort();
+
       fetch(`${API_BASE_URL}/api/chats`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      .then(res => {
+      .then(async res => {
         if (!res.ok) {
-          throw new Error('Database is currently unavailable.');
+          const msg = await getChatApiErrorMessage(res, 'clear');
+          throw new Error(msg);
         }
         setChats([]);
         setMessages([]);
@@ -455,8 +520,9 @@ function App() {
       })
       .catch(err => {
         console.error("Error clearing chats:", err);
-        setDbError('Database is currently unavailable. Chat history could not be cleared.');
+        setDbError(err.message || 'Failed to clear chat history.');
         isSwitchingChat.current = false;
+        isDeletingRef.current = false;
       });
     } else {
       // Clear guest local storage history

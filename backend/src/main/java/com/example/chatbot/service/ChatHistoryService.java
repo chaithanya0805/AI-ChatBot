@@ -1,17 +1,25 @@
 package com.example.chatbot.service;
 
+import com.example.chatbot.exception.ChatSessionNotFoundException;
+import com.example.chatbot.exception.DatabaseUnavailableException;
 import com.example.chatbot.model.ChatMessage;
 import com.example.chatbot.model.ChatSession;
 import com.example.chatbot.model.User;
 import com.example.chatbot.repository.ChatSessionRepository;
+import com.example.chatbot.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -19,15 +27,15 @@ import java.util.List;
 public class ChatHistoryService {
 
     private final ChatSessionRepository chatSessionRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public List<ChatSession> getAllChatsOfUser(User user) {
-        try {
-            return chatSessionRepository.findByUserOrderByTimestampDesc(user);
-        } catch (Exception e) {
-            log.error("Database error while fetching chats for user: {}", user.getEmail(), e);
-            throw new RuntimeException("Database is currently unavailable. Chat history could not be loaded.");
-        }
+        User managedUser = requireManagedUser(user);
+        return runWithConnectivityHandling(
+                () -> chatSessionRepository.findByUserOrderByTimestampDesc(managedUser),
+                "fetching chats for user: " + managedUser.getEmail(),
+                "Database is currently unavailable. Chat history could not be loaded.");
     }
 
     @Transactional
@@ -38,25 +46,9 @@ public class ChatHistoryService {
     @Transactional
     public ChatSession saveChatSession(ChatSession session, User user, String requestId) {
         String threadName = Thread.currentThread().getName();
-        boolean isTxActive = org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive();
-        log.info("[Service] [REQ: {}] [THREAD: {}] Entered saveChatSession. SessionId: {}, UserId: {}, TxActive: {}", 
-                requestId, threadName, session.getSessionId(), user.getId(), isTxActive);
-
-        if (isTxActive) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                new org.springframework.transaction.support.TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for saveChatSession COMMITTED successfully", requestId, Thread.currentThread().getName());
-                    }
-                    @Override
-                    public void afterCompletion(int status) {
-                        String statusStr = (status == STATUS_COMMITTED) ? "COMMITTED" : (status == STATUS_ROLLED_BACK ? "ROLLED_BACK" : "UNKNOWN");
-                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for saveChatSession completed with status: {}", requestId, Thread.currentThread().getName(), statusStr);
-                    }
-                }
-            );
-        }
+        User managedUser = requireManagedUser(user);
+        log.info("[Service] [REQ: {}] [THREAD: {}] Entered saveChatSession. SessionId: {}, UserId: {}",
+                requestId, threadName, session.getSessionId(), managedUser.getId());
 
         try {
             boolean isNewSession =
@@ -64,50 +56,39 @@ public class ChatHistoryService {
                     !session.getSessionId().startsWith("S");
 
             if (isNewSession) {
-                // NEW CHAT
                 session.setSessionId(generateNextSessionId());
-                session.setUser(user);
+                session.setUser(managedUser);
 
                 LocalDateTime now = LocalDateTime.now();
                 session.setCreatedAt(now);
                 session.setTimestamp(now);
             } else {
-                // EXISTING CHAT -> UPDATE
-                log.info("[Service] [REQ: {}] [THREAD: {}] Before findBySessionId", requestId, threadName);
+                final String requestedSessionId = session.getSessionId();
+                log.info("[Service] [REQ: {}] [THREAD: {}] Before findBySessionIdWithUser", requestId, threadName);
                 ChatSession existing = chatSessionRepository
-                        .findBySessionId(session.getSessionId())
-                        .orElseThrow(() -> new RuntimeException("Chat session not found"));
-                log.info("[Service] [REQ: {}] [THREAD: {}] After findBySessionId", requestId, threadName);
+                        .findBySessionIdWithUser(requestedSessionId)
+                        .orElseThrow(() -> new ChatSessionNotFoundException(requestedSessionId));
+                log.info("[Service] [REQ: {}] [THREAD: {}] After findBySessionIdWithUser", requestId, threadName);
 
-                // Verify Ownership
-                if (existing.getUser() == null || !existing.getUser().getId().equals(user.getId())) {
-                    log.warn("[Service] [REQ: {}] [THREAD: {}] Access denied: User {} tried to access session {} owned by {}", 
-                            requestId, threadName, user.getEmail(), session.getSessionId(), 
-                            existing.getUser() != null ? existing.getUser().getEmail() : "null");
-                    throw new AccessDeniedException("Unauthorized access to this chat session.");
-                }
+                verifyOwnership(existing, managedUser, requestId, threadName, "access");
 
-                // Update fields of the managed entity
                 existing.setTitle(session.getTitle());
                 existing.setTimestamp(LocalDateTime.now());
 
-                // Sync the messages collection
                 existing.getMessages().clear();
                 if (session.getMessages() != null) {
                     existing.getMessages().addAll(session.getMessages());
                 }
 
-                // Use the updated managed entity for the rest of the flow
                 session = existing;
             }
 
-            // Message timestamps & clear IDs to avoid detached entity conflicts
             if (session.getMessages() != null) {
                 LocalDateTime base = LocalDateTime.now();
                 for (int i = 0; i < session.getMessages().size(); i++) {
                     ChatMessage msg = session.getMessages().get(i);
-                    msg.setId(null); // Clear ID to treat as a new insert
-                    msg.setChatSession(session); // Set the back-reference
+                    msg.setId(null);
+                    msg.setChatSession(session);
                     if (msg.getCreatedAt() == null) {
                         msg.setCreatedAt(base.plusNanos(i * 1_000_000L));
                     }
@@ -119,17 +100,18 @@ public class ChatHistoryService {
             log.info("[Service] [REQ: {}] [THREAD: {}] After chatSessionRepository.save", requestId, threadName);
             return saved;
 
-        } catch (AccessDeniedException ade) {
-            log.warn("[Service] [REQ: {}] [THREAD: {}] AccessDeniedException in saveChatSession", requestId, threadName);
-            throw ade;
-        } catch (Exception e) {
-            java.io.StringWriter sw = new java.io.StringWriter();
-            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
-            e.printStackTrace(pw);
-            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(e);
-            log.error("[Service] [REQ: {}] [THREAD: {}] Database error while saving chat session for user: {}. Exception: {}. Root cause: {}. Stack trace: \n{}", 
-                    requestId, threadName, user.getEmail(), e.getClass().getName(), rootCause.getClass().getName() + ": " + rootCause.getMessage(), sw.toString(), e);
-            throw new RuntimeException("Database is currently unavailable. Chat session could not be saved.");
+        } catch (AccessDeniedException | ChatSessionNotFoundException | IllegalArgumentException e) {
+            throw e;
+        } catch (DataAccessException e) {
+            if (isDatabaseConnectivityIssue(e)) {
+                log.error("[Service] [REQ: {}] Database connectivity error while saving chat session for user: {}",
+                        requestId, managedUser.getEmail(), e);
+                throw new DatabaseUnavailableException(
+                        "Database is currently unavailable. Chat session could not be saved.", e);
+            }
+            log.error("[Service] [REQ: {}] Data access error while saving chat session for user: {}",
+                    requestId, managedUser.getEmail(), e);
+            throw e;
         }
     }
 
@@ -141,71 +123,65 @@ public class ChatHistoryService {
     @Transactional
     public void deleteChatSession(String sessionId, User user, String requestId) {
         String threadName = Thread.currentThread().getName();
-        boolean isTxActive = org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive();
-        log.info("[Service] [REQ: {}] [THREAD: {}] Entered deleteChatSession. SessionId: {}, UserId: {}, TxActive: {}", 
-                requestId, threadName, sessionId, user.getId(), isTxActive);
-
-        if (isTxActive) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                new org.springframework.transaction.support.TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for deleteChatSession COMMITTED successfully", requestId, Thread.currentThread().getName());
-                    }
-                    @Override
-                    public void afterCompletion(int status) {
-                        String statusStr = (status == STATUS_COMMITTED) ? "COMMITTED" : (status == STATUS_ROLLED_BACK ? "ROLLED_BACK" : "UNKNOWN");
-                        log.info("[Service] [REQ: {}] [THREAD: {}] Transaction for deleteChatSession completed with status: {}", requestId, Thread.currentThread().getName(), statusStr);
-                    }
-                }
-            );
-        }
+        User managedUser = requireManagedUser(user);
+        log.info("[Service] [REQ: {}] [THREAD: {}] Entered deleteChatSession. SessionId: {}, UserId: {}",
+                requestId, threadName, sessionId, managedUser.getId());
 
         try {
-            log.info("[Service] [REQ: {}] [THREAD: {}] Before findBySessionId", requestId, threadName);
+            log.info("[Service] [REQ: {}] [THREAD: {}] Before findBySessionIdWithUser", requestId, threadName);
             ChatSession existing = chatSessionRepository
-                    .findBySessionId(sessionId)
-                    .orElseThrow(() -> new RuntimeException("Chat session not found"));
-            log.info("[Service] [REQ: {}] [THREAD: {}] After findBySessionId", requestId, threadName);
+                    .findBySessionIdWithUser(sessionId)
+                    .orElseThrow(() -> new ChatSessionNotFoundException(sessionId));
+            log.info("[Service] [REQ: {}] [THREAD: {}] After findBySessionIdWithUser", requestId, threadName);
 
-            // Verify Ownership
-            if (existing.getUser() == null || !existing.getUser().getId().equals(user.getId())) {
-                log.warn("[Service] [REQ: {}] [THREAD: {}] Access denied: User {} tried to delete session {} owned by {}", 
-                        requestId, threadName, user.getEmail(), sessionId, 
-                        existing.getUser() != null ? existing.getUser().getEmail() : "null");
-                throw new AccessDeniedException("Unauthorized access to this chat session.");
-            }
-
-            if (user.getChatSessions() != null) {
-                user.getChatSessions().remove(existing);
-            }
-            existing.setUser(null);
+            verifyOwnership(existing, managedUser, requestId, threadName, "delete");
 
             log.info("[Service] [REQ: {}] [THREAD: {}] Before chatSessionRepository.delete", requestId, threadName);
             chatSessionRepository.delete(existing);
             log.info("[Service] [REQ: {}] [THREAD: {}] After chatSessionRepository.delete", requestId, threadName);
-        } catch (AccessDeniedException ade) {
-            log.warn("[Service] [REQ: {}] [THREAD: {}] AccessDeniedException in deleteChatSession", requestId, threadName);
-            throw ade;
-        } catch (Exception e) {
-            java.io.StringWriter sw = new java.io.StringWriter();
-            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
-            e.printStackTrace(pw);
-            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(e);
-            log.error("[Service] [REQ: {}] [THREAD: {}] Database error while deleting chat session for user: {}. Exception: {}. Root cause: {}. Stack trace: \n{}", 
-                    requestId, threadName, user.getEmail(), e.getClass().getName(), rootCause.getClass().getName() + ": " + rootCause.getMessage(), sw.toString(), e);
-            throw new RuntimeException("Database is currently unavailable. Chat session could not be deleted.");
+        } catch (AccessDeniedException | ChatSessionNotFoundException | IllegalArgumentException e) {
+            throw e;
+        } catch (DataAccessException e) {
+            if (isDatabaseConnectivityIssue(e)) {
+                log.error("[Service] [REQ: {}] Database connectivity error while deleting chat session for user: {}",
+                        requestId, managedUser.getEmail(), e);
+                throw new DatabaseUnavailableException(
+                        "Database is currently unavailable. Chat session could not be deleted.", e);
+            }
+            log.error("[Service] [REQ: {}] Data access error while deleting chat session for user: {}",
+                    requestId, managedUser.getEmail(), e);
+            throw e;
         }
     }
 
     @Transactional
     public void deleteAllChatsOfUser(User user) {
-        try {
-            List<ChatSession> userSessions = chatSessionRepository.findByUser(user);
-            chatSessionRepository.deleteAll(userSessions);
-        } catch (Exception e) {
-            log.error("Database error while clearing chat history for user: {}", user.getEmail(), e);
-            throw new RuntimeException("Database is currently unavailable. Chat history could not be cleared.");
+        User managedUser = requireManagedUser(user);
+        runWithConnectivityHandling(
+                () -> {
+                    List<ChatSession> userSessions = chatSessionRepository.findByUser(managedUser);
+                    chatSessionRepository.deleteAll(userSessions);
+                    return null;
+                },
+                "clearing chat history for user: " + managedUser.getEmail(),
+                "Database is currently unavailable. Chat history could not be cleared.");
+    }
+
+    private User requireManagedUser(User user) {
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("A valid user is required.");
+        }
+        return userRepository.findById(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User record not found."));
+    }
+
+    private void verifyOwnership(ChatSession existing, User managedUser, String requestId,
+                                   String threadName, String action) {
+        if (existing.getUser() == null || !existing.getUser().getId().equals(managedUser.getId())) {
+            log.warn("[Service] [REQ: {}] [THREAD: {}] Access denied: User {} tried to {} session {} owned by {}",
+                    requestId, threadName, managedUser.getEmail(), action, existing.getSessionId(),
+                    existing.getUser() != null ? existing.getUser().getEmail() : "null");
+            throw new AccessDeniedException("Unauthorized access to this chat session.");
         }
     }
 
@@ -219,8 +195,45 @@ public class ChatHistoryService {
         try {
             int number = Integer.parseInt(lastSessionId.substring(1));
             return "S" + (number + 1);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return "S1";
         }
+    }
+
+    private <T> T runWithConnectivityHandling(Supplier<T> action, String operation, String unavailableMessage) {
+        try {
+            return action.get();
+        } catch (AccessDeniedException | ChatSessionNotFoundException | IllegalArgumentException e) {
+            throw e;
+        } catch (DataAccessException e) {
+            if (isDatabaseConnectivityIssue(e)) {
+                log.error("Database connectivity error while {}", operation, e);
+                throw new DatabaseUnavailableException(unavailableMessage, e);
+            }
+            log.error("Data access error while {}", operation, e);
+            throw e;
+        }
+    }
+
+    private boolean isDatabaseConnectivityIssue(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof CannotGetJdbcConnectionException
+                    || current instanceof QueryTimeoutException
+                    || current instanceof DataAccessResourceFailureException) {
+                return true;
+            }
+            String name = current.getClass().getName();
+            if (name.contains("SQLTransientConnectionException")
+                    || (name.contains("PSQLException")
+                    && current.getMessage() != null
+                    && (current.getMessage().contains("Connection refused")
+                    || current.getMessage().contains("connection has been closed")
+                    || current.getMessage().contains("too many connections")))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

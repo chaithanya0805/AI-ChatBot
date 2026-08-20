@@ -5,6 +5,7 @@ import com.example.chatbot.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -23,6 +24,9 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> 
 
     // Find session by its readable session_id (e.g. S1, S2)
     Optional<ChatSession> findBySessionId(String sessionId);
+
+    @Query("SELECT cs FROM ChatSession cs JOIN FETCH cs.user WHERE cs.sessionId = :sessionId")
+    Optional<ChatSession> findBySessionIdWithUser(@Param("sessionId") String sessionId);
 
     // Delete session by its readable session_id
     void deleteBySessionId(String sessionId);
