@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatContainer } from './components/ChatContainer';
 import { useChatStream } from './hooks/useChatStream';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
@@ -42,9 +42,10 @@ const Logo = () => (
 );
 
 function App() {
-  const { messages, setMessages, sendMessage, isTyping } = useChatStream();
+  const { messages, setMessages, sendMessage, isTyping, stopStreaming } = useChatStream();
   const [input, setInput] = useState('');
   const [lastInputMode, setLastInputMode] = useState<InputMode>('text');
+  const activeRequestRef = useRef<{ id: string; isVoice: boolean; aborted: boolean } | null>(null);
 
   // Auth states
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -259,18 +260,18 @@ function App() {
     }
   }, [token]);
 
-  // Save changes to current chat messages
-  useEffect(() => {
-    if (isSwitchingChat.current || isDeletingRef.current || !activeChatId) return;
+  // Save changes to current chat messages direct callback (no useEffect)
+  const saveChatSessionDirect = useCallback((chatId: string | null, currentMessages: Message[]) => {
+    if (isSwitchingChat.current || isDeletingRef.current || !chatId) return;
 
-    const currentChat = chatsRef.current.find(c => c.id === activeChatId);
+    const currentChat = chatsRef.current.find(c => c.id === chatId);
     if (!currentChat) return;
 
-    if (messagesContentEqual(currentChat.messages, messages)) return;
+    if (messagesContentEqual(currentChat.messages, currentMessages)) return;
 
     let newTitle = currentChat.title;
-    if (currentChat.title === 'New Chat' && messages.length > 0) {
-      const firstUserMsg = messages.find(m => m.role === 'user');
+    if (currentChat.title === 'New Chat' && currentMessages.length > 0) {
+      const firstUserMsg = currentMessages.find(m => m.role === 'user');
       if (firstUserMsg) {
         newTitle = firstUserMsg.content.slice(0, 26) + (firstUserMsg.content.length > 26 ? '...' : '');
       }
@@ -279,14 +280,14 @@ function App() {
     const updatedChat: ChatSession = {
       ...currentChat,
       title: newTitle,
-      messages: messages,
+      messages: currentMessages,
       timestamp: Date.now()
     };
 
     if (token) {
-      if (!isBackendSessionId(activeChatId)) return;
+      if (!isBackendSessionId(chatId)) return;
 
-      setChats(prev => prev.map(c => c.id === activeChatId ? updatedChat : c));
+      setChats(prev => prev.map(c => c.id === chatId ? updatedChat : c));
 
       saveAbortRef.current?.abort();
       const controller = new AbortController();
@@ -312,7 +313,7 @@ function App() {
         if (controller.signal.aborted) return;
 
         const normalized = normalizeChatSession(savedChat);
-        const previousActiveId = activeChatId;
+        const previousActiveId = chatId;
 
         setChats(prev => prev.map(c =>
           c.id === previousActiveId || c.id === normalized.id ? normalized : c
@@ -322,7 +323,7 @@ function App() {
           setActiveChatId(normalized.id);
         }
 
-        if (!messagesContentEqual(messages, normalized.messages)) {
+        if (!messagesContentEqual(currentMessages, normalized.messages)) {
           isSwitchingChat.current = true;
           setMessages(normalized.messages);
           setTimeout(() => {
@@ -336,14 +337,14 @@ function App() {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error("Error saving chat session to DB:", err);
         setDbError(err.message || 'Failed to save chat session.');
-        setChats(prev => prev.map(c => c.id === activeChatId ? currentChat : c));
+        setChats(prev => prev.map(c => c.id === chatId ? currentChat : c));
       });
     } else {
-      const updatedChats = chatsRef.current.map(c => c.id === activeChatId ? updatedChat : c);
+      const updatedChats = chatsRef.current.map(c => c.id === chatId ? updatedChat : c);
       setChats(updatedChats);
       localStorage.setItem('guest_chats', JSON.stringify(updatedChats));
     }
-  }, [messages, activeChatId, token]);
+  }, [token]);
 
   const handleNewChatForToken = (tokenVal: string | null) => {
     isSwitchingChat.current = true;
@@ -737,10 +738,30 @@ function App() {
   };
 
   // Handle voice speech
-  const handleSpeechResult = (transcript: string) => {
+  const handleSpeechResult = async (transcript: string) => {
     setInput("");
     setLastInputMode('voice');
-    sendMessage(transcript);
+
+    const reqId = crypto.randomUUID();
+    activeRequestRef.current = { id: reqId, isVoice: true, aborted: false };
+
+    const result = await sendMessage(transcript);
+    if (!result) return;
+
+    saveChatSessionDirect(activeChatId, result.finalMessages);
+
+    // Speak the response if the current request is still active, voice-originated, and not aborted
+    if (
+      result.completed &&
+      activeRequestRef.current?.id === reqId &&
+      activeRequestRef.current.isVoice &&
+      !activeRequestRef.current.aborted
+    ) {
+      const lastMsg = result.finalMessages[result.finalMessages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
+        speak(lastMsg.content);
+      }
+    }
   };
 
   const {
@@ -757,31 +778,45 @@ function App() {
     clearVoiceError
   } = useVoiceAssistant(handleSpeechResult);
 
-  // Speak assistant replies ONLY in voice mode
-  useEffect(() => {
-    console.log("[Speech Effect] Executed. isTyping:", isTyping, "messages.length:", messages.length, "lastInputMode:", lastInputMode);
-    if (!isTyping && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      console.log("[Speech Effect] lastMessage role:", lastMessage.role, "content:", lastMessage.content);
-      if (lastMessage.role === 'assistant' && lastInputMode === 'voice') {
-        console.log("[Speech Effect] calling speak() with content:", lastMessage.content);
-        speak(lastMessage.content);
-      }
-    }
-  }, [isTyping, messages, speak, lastInputMode]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isTyping) return;
     setLastInputMode('text');
-    sendMessage(input);
     setInput('');
+
+    const reqId = crypto.randomUUID();
+    activeRequestRef.current = { id: reqId, isVoice: false, aborted: false };
+
+    const result = await sendMessage(input);
+    if (!result) return;
+
+    saveChatSessionDirect(activeChatId, result.finalMessages);
+  };
+
+  const handleStop = () => {
+    if (activeRequestRef.current) {
+      activeRequestRef.current.aborted = true;
+    }
+    
+    if (isTyping) {
+      const partialMessages = stopStreaming();
+      if (partialMessages && activeChatId) {
+        saveChatSessionDirect(activeChatId, partialMessages);
+      }
+    }
+    
+    if (isSpeaking) {
+      stopSpeaking();
+    }
   };
 
   const toggleListen = () => {
     if (isListening) {
       stopListening();
     } else {
+      if (activeRequestRef.current) {
+        activeRequestRef.current.aborted = true;
+      }
       setLastInputMode('voice');
       startListening();
     }
@@ -902,13 +937,13 @@ function App() {
           <div className="flex items-center gap-0.5 xs:gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
             
             {/* Audio Synthesis Info & Controls */}
-            {(lastInputMode === 'voice' || isSpeaking || isListening) && (
+            {(lastInputMode === 'voice' || isSpeaking || isListening || isTyping) && (
               <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3.5 mr-0.5 sm:mr-1 border-r border-slate-200/50 dark:border-[#2A2A2A] pr-2 sm:pr-3 md:pr-4">
-                {isSpeaking && (
+                {(isSpeaking || isTyping) && (
                   <button
-                    onClick={stopSpeaking}
+                    onClick={handleStop}
                     className="flex items-center gap-1 px-2 sm:px-2.5 py-1 min-h-[36px] text-[10px] sm:text-[11px] text-red-500 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-colors font-semibold"
-                    title="Stop audio presentation"
+                    title={isTyping ? "Stop generating response" : "Stop audio presentation"}
                   >
                     <Square className="w-2.5 h-2.5 fill-current flex-shrink-0" />
                     <span className="hidden xs:inline">Stop</span>

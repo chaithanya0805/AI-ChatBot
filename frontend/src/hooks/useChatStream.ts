@@ -11,6 +11,16 @@ export const useChatStream = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+
+  // Keep messagesRef in sync with messages state immediately
+  const updateMessagesState = useCallback((newMsgs: Message[] | ((prev: Message[]) => Message[])) => {
+    setMessages((prev) => {
+      const resolved = typeof newMsgs === 'function' ? newMsgs(prev) : newMsgs;
+      messagesRef.current = resolved;
+      return resolved;
+    });
+  }, []);
 
   // Clean up any pending requests on unmount
   useEffect(() => {
@@ -21,7 +31,16 @@ export const useChatStream = () => {
     };
   }, []);
 
-  const sendMessage = useCallback(async (prompt: string) => {
+  const stopStreaming = useCallback((): Message[] => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsTyping(false);
+    return messagesRef.current;
+  }, []);
+
+  const sendMessage = useCallback(async (prompt: string): Promise<{ finalMessages: Message[]; completed: boolean } | null> => {
     // Abort previous streaming request if still running
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -35,7 +54,7 @@ export const useChatStream = () => {
       content: prompt
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    updateMessagesState((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
     let content = "";
@@ -71,7 +90,7 @@ export const useChatStream = () => {
       } else {
         streamStarted = true;
         // Append an empty assistant message slot to update progressively
-        setMessages((prev) => [
+        updateMessagesState((prev) => [
           ...prev,
           {
             id: assistantMsgId,
@@ -92,7 +111,7 @@ export const useChatStream = () => {
               const chunk = decoder.decode(value, { stream: true });
               content += chunk;
 
-              setMessages((prev) => {
+              updateMessagesState((prev) => {
                 const updated = [...prev];
                 const idx = updated.findIndex((m) => m.id === assistantMsgId);
                 if (idx !== -1) {
@@ -109,21 +128,20 @@ export const useChatStream = () => {
           }
         }
       }
-    } catch (error: any) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        console.log("Chat request aborted");
-        return; // exit early without resetting state or adding error message
-      }
-      console.error("Chat request exception:", error);
-      content = "⚠️ Jarvis is temporarily unavailable. Please try again in a few moments.";
-    } finally {
-      if (abortController.signal.aborted) {
-        // Do not update states if this request was aborted
-        return;
-      }
+      
+      setIsTyping(false);
       if (abortControllerRef.current === abortController) {
         abortControllerRef.current = null;
       }
+      return { finalMessages: messagesRef.current, completed: true };
+
+    } catch (error: any) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.log("Chat request aborted");
+        return null; // exit early without updating states
+      }
+      console.error("Chat request exception:", error);
+      content = "⚠️ Jarvis is temporarily unavailable. Please try again in a few moments.";
       
       // If stream didn't start or we encountered an error, append the assistant message slot with the error content
       if (!streamStarted) {
@@ -132,16 +150,34 @@ export const useChatStream = () => {
           role: 'assistant',
           content
         };
-        setMessages((prev) => [...prev, assistantMsg]);
+        updateMessagesState((prev) => [...prev, assistantMsg]);
+      } else {
+        updateMessagesState((prev) => {
+          const updated = [...prev];
+          const idx = updated.findIndex((m) => m.id === assistantMsgId);
+          if (idx !== -1) {
+            updated[idx] = {
+              ...updated[idx],
+              content: content
+            };
+          }
+          return updated;
+        });
       }
+
       setIsTyping(false);
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+      return { finalMessages: messagesRef.current, completed: false };
     }
-  }, []);
+  }, [updateMessagesState]);
 
   return {
     messages,
     setMessages,
     sendMessage,
-    isTyping
+    isTyping,
+    stopStreaming
   };
 };
