@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatContainer } from './components/ChatContainer';
-import { useChatStream } from './hooks/useChatStream';
+import { useChatStream, Message } from './hooks/useChatStream';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
 import { API_BASE_URL } from './config';
 import {
