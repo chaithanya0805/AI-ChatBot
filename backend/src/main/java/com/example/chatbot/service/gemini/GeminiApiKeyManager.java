@@ -27,11 +27,28 @@ public class GeminiApiKeyManager {
 
     @PostConstruct
     void init() {
-        registerKey(1, firstNonBlank(properties.getKey1(), properties.getKey()));
-        registerKey(2, properties.getKey2());
-        registerKey(3, properties.getKey3());
-        registerKey(4, properties.getKey4());
-        registerKey(5, properties.getKey5());
+        // Priority loading for Gemini keys
+        registerKey(1, firstNonBlank(properties.getKey1(), firstNonBlank(System.getenv("GEMINI_API_KEY_1"), properties.getKey())));
+        registerKey(2, firstNonBlank(properties.getKey2(), System.getenv("GEMINI_API_KEY_2")));
+        registerKey(3, firstNonBlank(properties.getKey3(), System.getenv("GEMINI_API_KEY_3")));
+        registerKey(4, firstNonBlank(properties.getKey4(), System.getenv("GEMINI_API_KEY_4")));
+        registerKey(5, firstNonBlank(properties.getKey5(), System.getenv("GEMINI_API_KEY_5")));
+
+        // Cooldown priority loading
+        long cooldownSeconds = 60;
+        if (properties.getKeyCooldownSeconds() > 0) {
+            cooldownSeconds = properties.getKeyCooldownSeconds();
+        } else {
+            String cooldownEnv = System.getenv("GEMINI_KEY_COOLDOWN_SECONDS");
+            if (cooldownEnv != null && !cooldownEnv.isBlank()) {
+                try {
+                    cooldownSeconds = Long.parseLong(cooldownEnv.trim());
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid GEMINI_KEY_COOLDOWN_SECONDS environment variable: {}. Falling back to default (60s).", cooldownEnv);
+                }
+            }
+        }
+        properties.setKeyCooldownSeconds(cooldownSeconds);
 
         if (keySlots.isEmpty()) {
             log.warn("No Gemini API keys configured. Set GEMINI_API_KEY_1 (or legacy GEMINI_API_KEY) through GEMINI_API_KEY_5.");

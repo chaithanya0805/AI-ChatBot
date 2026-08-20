@@ -9,4 +9,4 @@ RUN ./mvnw clean package -DskipTests
 
 EXPOSE 8083
 
-CMD ["java", "-jar", "target/chatbot-0.0.1-SNAPSHOT.jar"]
+CMD ["java", "-XX:+UseSerialGC", "-Xss256k", "-Xmx256m", "-jar", "target/chatbot-0.0.1-SNAPSHOT.jar"]
