@@ -37,4 +37,9 @@ jwt:
 
 gemini:
   api:
-    key: ${GEMINI_API_KEY}
+    key1: ${GEMINI_API_KEY_1:}
+    key2: ${GEMINI_API_KEY_2:}
+    key3: ${GEMINI_API_KEY_3:}
+    key4: ${GEMINI_API_KEY_4:}
+    key5: ${GEMINI_API_KEY_5:}
+    key-cooldown-seconds: ${GEMINI_KEY_COOLDOWN_SECONDS:60}

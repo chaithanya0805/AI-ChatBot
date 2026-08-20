@@ -45,7 +45,9 @@ export const useChatStream = () => {
 
       if (!response.ok) {
         console.error("AI service error response:", response.status, data);
-        if (response.status === 429) {
+        if (response.status === 503) {
+          content = "Jarvis is currently unavailable. Please try again later.";
+        } else if (response.status === 429) {
           content = "⚠️ The AI service is currently busy. Please try again after some time.";
         } else {
           content = "⚠️ Jarvis is temporarily unavailable. Please try again in a few moments.";

@@ -16,6 +16,14 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(GeminiUnavailableException.class)
+    public ResponseEntity<String> handleGeminiUnavailable(GeminiUnavailableException ex, ServerWebExchange exchange) {
+        String requestId = exchange != null ? exchange.getAttributeOrDefault("requestId", "UNKNOWN") : "UNKNOWN";
+        log.warn("[GlobalExceptionHandler] [REQ: {}] Gemini unavailable: {}", requestId, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(GeminiUnavailableException.USER_MESSAGE);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex, ServerWebExchange exchange) {
         String requestId = exchange != null ? exchange.getAttributeOrDefault("requestId", "UNKNOWN") : "UNKNOWN";
