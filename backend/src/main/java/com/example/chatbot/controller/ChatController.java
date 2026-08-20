@@ -3,8 +3,9 @@ package com.example.chatbot.controller;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.service.gemini.GeminiService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -17,8 +18,9 @@ public class ChatController {
         this.geminiService = geminiService;
     }
 
-    @PostMapping("/ask")
-    public Mono<String> askChat(@Valid @RequestBody ChatRequest request) {
-        return geminiService.generateContent(request.getPrompt());
+    @PostMapping(value = "/ask", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
+    public Flux<String> askChat(@Valid @RequestBody ChatRequest request) {
+        return geminiService.streamGenerateContent(request.getPrompt())
+                .map(sse -> sse.data() != null ? sse.data() : "");
     }
 }

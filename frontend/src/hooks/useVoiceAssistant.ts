@@ -66,6 +66,10 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   const transcriptRef = useRef<string>('');
   const onSpeechResultRef = useRef(onSpeechResult);
 
+  // Active session tracking to invalidate late/stale callbacks
+  const ttsSessionIdRef = useRef<number>(0);
+  const recognitionSessionIdRef = useRef<number>(0);
+
   // Update ref to avoid stale closures in event handlers
   onSpeechResultRef.current = onSpeechResult;
 
@@ -106,6 +110,9 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
     console.log("[useVoiceAssistant] calling speechSynthesis.cancel()");
     window.speechSynthesis.cancel(); // Stop any ongoing speech
 
+    // Invalidate callbacks from previous TTS sessions
+    const currentTtsSession = ++ttsSessionIdRef.current;
+
     const cleanedText = cleanMarkdown(text);
     if (!cleanedText) {
       console.log("[useVoiceAssistant] speak() early return: cleanedText is empty");
@@ -136,14 +143,17 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
     utterance.rate = 0.95;  
     
     utterance.onstart = () => {
+      if (currentTtsSession !== ttsSessionIdRef.current) return;
       console.log("[useVoiceAssistant] utterance.onstart fired!");
       setIsSpeaking(true);
     };
     utterance.onend = () => {
+      if (currentTtsSession !== ttsSessionIdRef.current) return;
       console.log("[useVoiceAssistant] utterance.onend fired!");
       setIsSpeaking(false);
     };
     utterance.onerror = (e: any) => {
+      if (currentTtsSession !== ttsSessionIdRef.current) return;
       console.log("[useVoiceAssistant] utterance.onerror fired! error event details:", e.error);
       setIsSpeaking(false);
     };
@@ -153,6 +163,8 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   }, [voices, isMuted]);
 
   const stopSpeaking = useCallback(() => {
+    // Invalidate current TTS callbacks
+    ttsSessionIdRef.current++;
     window.speechSynthesis.cancel();
     setIsSpeaking(false);
   }, []);
@@ -164,6 +176,22 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   const startListening = useCallback(() => {
     setVoiceError(null);
     transcriptRef.current = '';
+
+    // 1. Forcefully abort any active SpeechRecognition instance to avoid overlap/stale events
+    if (recognition) {
+      try {
+        recognition.abort();
+      } catch (e) {
+        console.warn("[useVoiceAssistant] Error aborting recognition:", e);
+      }
+    }
+
+    // 2. Invalidate any active/queued SpeechSynthesis (TTS) and stop sound immediately
+    ttsSessionIdRef.current++;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
 
     if (!window.isSecureContext) {
       const secureError = "Speech Recognition requires a secure context (HTTPS) on mobile devices. Please ensure the app is accessed over HTTPS.";
@@ -181,11 +209,26 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       return;
     }
     
+    // Invalidate callbacks from previous recognition runs
+    const currentRecSession = ++recognitionSessionIdRef.current;
+
     try {
-      recognition.start();
-      setIsListening(true);
+      // Allow audio hardware state transitions (TTS stop -> Microphone start) to complete safely
+      setTimeout(() => {
+        if (currentRecSession !== recognitionSessionIdRef.current) return;
+        try {
+          recognition.start();
+          setIsListening(true);
+        } catch (e: any) {
+          console.error("[useVoiceAssistant] start exception inside timeout:", e);
+          setVoiceError(e?.message || "Failed to start speech recognition.");
+          setIsListening(false);
+        }
+      }, 100);
       
       recognition.onresult = (event: any) => {
+        if (currentRecSession !== recognitionSessionIdRef.current) return;
+
         let transcript = '';
         for (let i = 0; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
@@ -199,6 +242,7 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
 
         // Auto-submit after 1.5s of silence as a fallback helper
         silenceTimeoutRef.current = setTimeout(() => {
+          if (currentRecSession !== recognitionSessionIdRef.current) return;
           const text = transcriptRef.current;
           if (text) {
             onSpeechResultRef.current(text);
@@ -209,6 +253,8 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       };
 
       recognition.onerror = (event: any) => {
+        if (currentRecSession !== recognitionSessionIdRef.current) return;
+        
         console.error("[useVoiceAssistant] onerror event:", event);
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
@@ -235,6 +281,8 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       };
 
       recognition.onend = () => {
+        if (currentRecSession !== recognitionSessionIdRef.current) return;
+
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
           silenceTimeoutRef.current = null;
@@ -257,8 +305,12 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   }, [recognition]);
 
   const stopListening = useCallback(() => {
+    // Invalidate callbacks from the stopped session
+    recognitionSessionIdRef.current++;
     if (recognition) {
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch (e) {}
       if (silenceTimeoutRef.current) {
         clearTimeout(silenceTimeoutRef.current);
         silenceTimeoutRef.current = null;

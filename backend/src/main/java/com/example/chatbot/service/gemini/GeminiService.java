@@ -3,21 +3,25 @@ package com.example.chatbot.service.gemini;
 import com.example.chatbot.exception.GeminiApiException;
 import com.example.chatbot.exception.GeminiUnavailableException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @Slf4j
 public class GeminiService {
 
-    private static final String GENERATE_CONTENT_PATH = "/v1beta/models/gemini-2.5-flash:generateContent";
+    private static final String STREAM_GENERATE_CONTENT_PATH =
+            "/v1beta/models/gemini-2.5-flash:streamGenerateContent";
 
     private final WebClient webClient;
     private final GeminiApiKeyManager keyManager;
@@ -29,36 +33,53 @@ public class GeminiService {
                 .build();
     }
 
-    public Mono<String> generateContent(String prompt) {
+    public Flux<ServerSentEvent<String>> streamGenerateContent(String prompt) {
         if (keyManager.getConfiguredKeyCount() == 0) {
-            log.error("Gemini request rejected: no API keys configured.");
-            return Mono.error(new GeminiUnavailableException());
+            log.error("Gemini stream request rejected: no API keys configured.");
+            return Flux.error(new GeminiUnavailableException());
         }
 
-        return attemptWithFailover(prompt, new HashSet<>());
+        return attemptStreamWithFailover(prompt, new HashSet<>());
     }
 
-    private Mono<String> attemptWithFailover(String prompt, Set<Integer> triedKeyIndices) {
+    private Flux<ServerSentEvent<String>> attemptStreamWithFailover(String prompt, Set<Integer> triedKeyIndices) {
         var keyOpt = keyManager.selectAvailableKey(triedKeyIndices);
         if (keyOpt.isEmpty()) {
             log.error("All configured Gemini API keys are unavailable or exhausted.");
-            return Mono.error(new GeminiUnavailableException());
+            return Flux.error(new GeminiUnavailableException());
         }
 
         GeminiApiKeyManager.KeySlot keySlot = keyOpt.get();
-        return callGemini(prompt, keySlot)
-                .onErrorResume(error -> handleGeminiFailure(prompt, triedKeyIndices, keySlot, error));
+        AtomicBoolean contentStarted = new AtomicBoolean(false);
+
+        return callGeminiStream(prompt, keySlot)
+                .doOnNext(chunk -> contentStarted.set(true))
+                .map(chunk -> ServerSentEvent.<String>builder().data(chunk).build())
+                .onErrorResume(error -> handleStreamFailure(
+                        prompt,
+                        triedKeyIndices,
+                        keySlot,
+                        error,
+                        contentStarted.get()
+                ));
     }
 
-    private Mono<String> handleGeminiFailure(
+    private Flux<ServerSentEvent<String>> handleStreamFailure(
             String prompt,
             Set<Integer> triedKeyIndices,
             GeminiApiKeyManager.KeySlot failedKey,
-            Throwable error
+            Throwable error,
+            boolean contentStarted
     ) {
+        if (contentStarted) {
+            log.warn("Gemini stream interrupted after content started using key {}. Preserving partial response.",
+                    failedKey.getIndex(), error);
+            return Flux.empty();
+        }
+
         if (!GeminiApiErrorClassifier.shouldFailover(error)) {
-            log.error("Gemini request failed with non-failover error using key {}.", failedKey.getIndex(), error);
-            return Mono.error(error);
+            log.error("Gemini stream failed with non-failover error using key {}.", failedKey.getIndex(), error);
+            return Flux.error(error);
         }
 
         String reason = GeminiApiErrorClassifier.describeReason(error);
@@ -68,21 +89,22 @@ public class GeminiService {
         nextTried.add(failedKey.getIndex());
 
         if (nextTried.size() >= keyManager.getConfiguredKeyCount()) {
-            log.error("All {} configured Gemini API keys failed for this request.", keyManager.getConfiguredKeyCount());
-            return Mono.error(new GeminiUnavailableException());
+            log.error("All {} configured Gemini API keys failed for this stream request.",
+                    keyManager.getConfiguredKeyCount());
+            return Flux.error(new GeminiUnavailableException());
         }
 
         var nextKeyOpt = keyManager.selectAvailableKey(nextTried);
         if (nextKeyOpt.isEmpty()) {
-            log.error("No additional Gemini API keys available after key {} failure.", failedKey.getIndex());
-            return Mono.error(new GeminiUnavailableException());
+            log.error("No additional Gemini API keys available after key {} stream failure.", failedKey.getIndex());
+            return Flux.error(new GeminiUnavailableException());
         }
 
         keyManager.logSwitching(failedKey.getIndex(), nextKeyOpt.get().getIndex(), reason);
-        return attemptWithFailover(prompt, nextTried);
+        return attemptStreamWithFailover(prompt, nextTried);
     }
 
-    private Mono<String> callGemini(String prompt, GeminiApiKeyManager.KeySlot keySlot) {
+    private Flux<String> callGeminiStream(String prompt, GeminiApiKeyManager.KeySlot keySlot) {
         Map<String, Object> body = Map.of(
                 "contents", new Object[]{
                         Map.of(
@@ -97,35 +119,24 @@ public class GeminiService {
 
         return webClient.post()
                 .uri(uriBuilder -> uriBuilder
-                        .path(GENERATE_CONTENT_PATH)
+                        .path(STREAM_GENERATE_CONTENT_PATH)
                         .queryParam("key", keySlot.getApiKey())
+                        .queryParam("alt", "sse")
                         .build())
                 .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(body)
-                .exchangeToMono(response -> {
+                .exchangeToFlux(response -> {
                     if (response.statusCode().is2xxSuccessful()) {
-                        return response.bodyToMono(Map.class).map(this::extractAssistantText);
+                        Flux<DataBuffer> bodyFlux = response.bodyToFlux(DataBuffer.class);
+                        return GeminiStreamChunkParser.parseSseStream(bodyFlux)
+                                .doOnComplete(() -> log.debug("Gemini stream completed using key {}.", keyIndex));
                     }
+
                     return response.bodyToMono(String.class)
                             .defaultIfEmpty("")
-                            .flatMap(errorBody -> Mono.error(
+                            .flatMapMany(errorBody -> Flux.error(
                                     new GeminiApiException(keyIndex, response.statusCode(), errorBody)));
-                })
-                .doOnSuccess(text -> log.debug("Gemini request succeeded using key {}.", keyIndex));
-    }
-
-    @SuppressWarnings("unchecked")
-    private String extractAssistantText(Map<?, ?> response) {
-        try {
-            List<?> candidates = (List<?>) response.get("candidates");
-            Map<?, ?> candidate = (Map<?, ?>) candidates.get(0);
-            Map<?, ?> content = (Map<?, ?>) candidate.get("content");
-            List<?> parts = (List<?>) content.get("parts");
-            Map<?, ?> part = (Map<?, ?>) parts.get(0);
-            return part.get("text").toString();
-        } catch (Exception e) {
-            log.warn("Failed to parse Gemini response payload.", e);
-            return "Error processing response";
-        }
+                });
     }
 }
