@@ -32,9 +32,9 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         stiffness: 350, 
         damping: 30 
       }}
-      className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 group`}
+      className={`flex w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'} mb-4 sm:mb-6 group`}
     >
-      <div className={`flex ${isUser ? 'max-w-[70%]' : 'max-w-[85%] sm:max-w-[75ch] w-full'} ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-2 sm:gap-3 items-start`}>
+      <div className={`flex min-w-0 ${isUser ? 'max-w-[min(85%,100%)] xs:max-w-[80%] sm:max-w-[75%]' : 'max-w-[min(92%,100%)] sm:max-w-[85%] md:max-w-[75ch]'} w-full ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-2 sm:gap-3 items-start`}>
         {/* Avatar */}
         <div className="flex-shrink-0">
           {isUser ? (
@@ -49,19 +49,32 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ id, role, content, isStr
         {/* Bubble */}
         <div
           className={`
-            px-4 py-3 md:px-5 md:py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-250 w-full max-w-full overflow-hidden break-words
+            px-3 py-2.5 sm:px-4 sm:py-3 md:px-5 md:py-3.5 relative text-sm leading-relaxed shadow-xs transition-colors duration-250 w-full min-w-0 max-w-full overflow-hidden break-words overflow-wrap-anywhere
             ${isUser 
               ? 'bg-slate-100 dark:bg-[#181818] text-slate-800 dark:text-[#F5F5F5] border border-slate-200/60 dark:border-[#2A2A2A] rounded-2xl rounded-tr-xs font-medium' 
               : 'bg-white dark:bg-[#0F0F0F] text-slate-800 dark:text-[#F5F5F5] border border-slate-200/60 dark:border-[#2A2A2A] rounded-2xl rounded-tl-xs'
             }
           `}
         >
-          <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2.5 prose-pre:bg-slate-50 dark:prose-pre:bg-[#151515] prose-pre:border prose-pre:border-slate-200/80 dark:prose-pre:border-[#2A2A2A] prose-pre:shadow-xs prose-pre:rounded-xl prose-code:text-[#D4AF6A] dark:prose-code:text-[#D4AF6A] prose-code:font-mono font-sans tracking-normal">
+          <div className="relative z-10 prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:leading-relaxed prose-pre:my-2.5 prose-pre:bg-slate-50 dark:prose-pre:bg-[#151515] prose-pre:border prose-pre:border-slate-200/80 dark:prose-pre:border-[#2A2A2A] prose-pre:shadow-xs prose-pre:rounded-xl prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:text-[#D4AF6A] dark:prose-code:text-[#D4AF6A] prose-code:font-mono prose-code:break-words prose-img:max-w-full prose-img:h-auto font-sans tracking-normal overflow-wrap-anywhere">
             {content ? (
               <ReactMarkdown
                 components={{
+                  pre: ({node, ...props}) => (
+                    <pre className="overflow-x-auto max-w-full whitespace-pre-wrap break-words" {...props} />
+                  ),
+                  code: ({node, className, children, ...props}) => {
+                    const isBlock = className?.includes('language-');
+                    if (isBlock) {
+                      return <code className={`${className || ''} break-words whitespace-pre-wrap`} {...props}>{children}</code>;
+                    }
+                    return <code className="break-words" {...props}>{children}</code>;
+                  },
+                  a: ({node, ...props}) => (
+                    <a className="break-all" {...props} />
+                  ),
                   table: ({node, ...props}) => (
-                    <div className="overflow-x-auto w-full my-4 border border-slate-200/50 dark:border-slate-800 rounded-xl scrollbar-thin">
+                    <div className="overflow-x-auto w-full max-w-full my-4 border border-slate-200/50 dark:border-slate-800 rounded-xl scrollbar-thin">
                       <table className="min-w-full text-xs border-collapse" {...props} />
                     </div>
                   ),
