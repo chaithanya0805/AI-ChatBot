@@ -11,6 +11,7 @@ import reactor.core.publisher.Flux;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 public final class GeminiStreamChunkParser {
@@ -23,8 +24,49 @@ public final class GeminiStreamChunkParser {
     public static Flux<String> parseSseStream(Flux<DataBuffer> body) {
         return body
                 .map(GeminiStreamChunkParser::readBuffer)
-                .scan(new ParseState(), ParseState::append)
-                .concatMap(ParseState::drainTextDeltas);
+                .scan(new ParseResult("", List.of()), (prev, chunk) -> {
+                    StringBuilder sb = new StringBuilder(prev.remainingLineBuffer);
+                    sb.append(chunk);
+                    String accumulated = sb.toString();
+
+                    List<String> deltas = new ArrayList<>();
+                    int lastNewlineIndex = -1;
+
+                    // Find the last line break (either \n or \r)
+                    for (int i = 0; i < accumulated.length(); i++) {
+                        char c = accumulated.charAt(i);
+                        if (c == '\n' || c == '\r') {
+                            lastNewlineIndex = i;
+                        }
+                    }
+
+                    String linesToProcess = "";
+                    String remaining = accumulated;
+                    if (lastNewlineIndex != -1) {
+                        linesToProcess = accumulated.substring(0, lastNewlineIndex + 1);
+                        remaining = accumulated.substring(lastNewlineIndex + 1);
+                    }
+
+                    if (!linesToProcess.isEmpty()) {
+                        // Split into individual lines to process
+                        String[] lines = linesToProcess.split("\\r?\\n");
+                        for (String line : lines) {
+                            String trimmed = line.trim();
+                            if (!trimmed.isEmpty() && !trimmed.startsWith(":")) {
+                                String payload = trimmed;
+                                if (trimmed.startsWith("data:")) {
+                                    payload = trimmed.substring(5).trim();
+                                }
+                                if (!payload.isEmpty() && !"[DONE]".equals(payload)) {
+                                    extractText(payload).ifPresent(deltas::add);
+                                }
+                            }
+                        }
+                    }
+
+                    return new ParseResult(remaining, deltas);
+                })
+                .flatMapIterable(ParseResult::getNewDeltas);
     }
 
     private static String readBuffer(DataBuffer buffer) {
@@ -37,94 +79,49 @@ public final class GeminiStreamChunkParser {
         }
     }
 
-    static ParseState append(ParseState state, String chunk) {
-        return state.append(chunk);
+    private static Optional<String> extractText(String payload) {
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(payload);
+            JsonNode candidates = root.path("candidates");
+            if (!candidates.isArray() || candidates.isEmpty()) {
+                return Optional.empty();
+            }
+
+            JsonNode parts = candidates.get(0).path("content").path("parts");
+            if (!parts.isArray() || parts.isEmpty()) {
+                return Optional.empty();
+            }
+
+            JsonNode textNode = parts.get(0).path("text");
+            if (textNode.isMissingNode() || textNode.isNull()) {
+                return Optional.empty();
+            }
+
+            String text = textNode.asText("");
+            return StringUtils.hasText(text)
+                    ? Optional.of(text)
+                    : Optional.empty();
+        } catch (Exception ex) {
+            log.debug("Skipping unparsable Gemini stream payload.", ex);
+            return Optional.empty();
+        }
     }
 
-    static final class ParseState {
-        private final StringBuilder lineBuffer = new StringBuilder();
-        private final List<String> pendingDeltas = new ArrayList<>();
+    private static final class ParseResult {
+        private final String remainingLineBuffer;
+        private final List<String> newDeltas;
 
-        ParseState append(String chunk) {
-            lineBuffer.append(chunk);
-
-            int newlineIndex;
-            while ((newlineIndex = indexOfLineBreak(lineBuffer)) >= 0) {
-                String line = lineBuffer.substring(0, newlineIndex).trim();
-                int breakLength = lineBuffer.charAt(newlineIndex) == '\r'
-                        && newlineIndex + 1 < lineBuffer.length()
-                        && lineBuffer.charAt(newlineIndex + 1) == '\n'
-                        ? 2
-                        : 1;
-                lineBuffer.delete(0, newlineIndex + breakLength);
-                processLine(line);
-            }
-
-            return this;
+        ParseResult(String remainingLineBuffer, List<String> newDeltas) {
+            this.remainingLineBuffer = remainingLineBuffer;
+            this.newDeltas = newDeltas;
         }
 
-        Flux<String> drainTextDeltas() {
-            if (pendingDeltas.isEmpty()) {
-                return Flux.empty();
-            }
-            List<String> deltas = List.copyOf(pendingDeltas);
-            pendingDeltas.clear();
-            return Flux.fromIterable(deltas);
+        String getRemainingLineBuffer() {
+            return remainingLineBuffer;
         }
 
-        private void processLine(String line) {
-            if (!StringUtils.hasText(line) || line.startsWith(":")) {
-                return;
-            }
-
-            String payload = line;
-            if (line.startsWith("data:")) {
-                payload = line.substring(5).trim();
-            }
-
-            if (!StringUtils.hasText(payload) || "[DONE]".equals(payload)) {
-                return;
-            }
-
-            extractText(payload).ifPresent(pendingDeltas::add);
-        }
-
-        private static int indexOfLineBreak(StringBuilder builder) {
-            for (int i = 0; i < builder.length(); i++) {
-                char c = builder.charAt(i);
-                if (c == '\n' || c == '\r') {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
-        private static java.util.Optional<String> extractText(String payload) {
-            try {
-                JsonNode root = OBJECT_MAPPER.readTree(payload);
-                JsonNode candidates = root.path("candidates");
-                if (!candidates.isArray() || candidates.isEmpty()) {
-                    return java.util.Optional.empty();
-                }
-
-                JsonNode parts = candidates.get(0).path("content").path("parts");
-                if (!parts.isArray() || parts.isEmpty()) {
-                    return java.util.Optional.empty();
-                }
-
-                JsonNode textNode = parts.get(0).path("text");
-                if (textNode.isMissingNode() || textNode.isNull()) {
-                    return java.util.Optional.empty();
-                }
-
-                String text = textNode.asText("");
-                return StringUtils.hasText(text)
-                        ? java.util.Optional.of(text)
-                        : java.util.Optional.empty();
-            } catch (Exception ex) {
-                log.debug("Skipping unparsable Gemini stream payload.", ex);
-                return java.util.Optional.empty();
-            }
+        List<String> getNewDeltas() {
+            return newDeltas;
         }
     }
 }
