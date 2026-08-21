@@ -1,6 +1,103 @@
-import React from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { useGLTF, Sparkles, Environment, ContactShadows } from '@react-three/drei';
+import * as THREE from 'three';
 
+// 1. Error Boundary to protect the application from WebGL context failures or load failures
+class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("WebGL / 3D Helmet Rendering Error Caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null; // Fail-soft: render nothing if Canvas fails, keeping HTML/CSS intro intact
+    }
+    return this.props.children;
+  }
+}
+
+// 2. 3D Golden Helmet Component
+const GoldenHelmet: React.FC = () => {
+  const group = useRef<THREE.Group>(null);
+  
+  // Load the detailed damaged helmet model
+  const { scene } = useGLTF('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb');
+
+  useEffect(() => {
+    // Traverse meshes and replace materials with customized premium bronze-gold PBR settings
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        const oldMat = mesh.material as THREE.MeshStandardMaterial;
+        
+        mesh.material = new THREE.MeshStandardMaterial({
+          map: oldMat.map,
+          normalMap: oldMat.normalMap,
+          roughnessMap: oldMat.roughnessMap,
+          metalnessMap: oldMat.metalnessMap,
+          aoMap: oldMat.aoMap,
+          emissiveMap: oldMat.emissiveMap,
+          metalness: 0.95,
+          roughness: 0.18,
+          color: new THREE.Color('#B58E4F'), // Polished bronze-gold tint
+          emissive: new THREE.Color('#D4AF6A'), // Gold emissive eyes/lines
+          emissiveIntensity: 0, // Animated in useFrame
+        });
+      }
+    });
+  }, [scene]);
+
+  // Gentle float, scanning rotation, and gradual eye-glow illumination over the first 2 seconds
+  useFrame((state) => {
+    const time = state.clock.getElapsedTime();
+    if (group.current) {
+      // Subtle head sway/scan
+      group.current.rotation.y = Math.sin(time * 0.3) * 0.25;
+      group.current.rotation.x = Math.sin(time * 0.4) * 0.08;
+      
+      // visor & lines ignite gradually from 0 to 2.5 intensity
+      const targetGlow = Math.min(2.5, time * 1.5);
+      
+      group.current.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (mesh.material instanceof THREE.MeshStandardMaterial) {
+            mesh.material.emissiveIntensity = targetGlow;
+          }
+        }
+      });
+    }
+  });
+
+  return (
+    <group ref={group} dispose={null} scale={2.1} position={[0, -0.1, 0]}>
+      {/* Soft gold sparkles surrounding the helmet */}
+      <Sparkles count={40} scale={3.5} size={1.5} speed={0.4} opacity={0.3} color="#D4AF6A" />
+      
+      {/* 3D mesh model */}
+      <primitive object={scene} />
+
+      {/* Internal golden light source behind the visor faceplate */}
+      <pointLight position={[0, 0.2, 0.4]} color="#D4AF6A" intensity={3} distance={2} />
+    </group>
+  );
+};
+
+// Preload the glTF model globally
+useGLTF.preload('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb');
+
+// 3. Main Intro Overlay Component
 export const JarvisIntroOverlay: React.FC = () => {
   return (
     <motion.div
@@ -16,7 +113,29 @@ export const JarvisIntroOverlay: React.FC = () => {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(212,175,106,0.12)_0%,transparent_60%)] pointer-events-none z-0" />
 
       {/* Intro Contents */}
-      <div className="relative z-10 flex flex-col items-center">
+      <div className="relative z-10 flex flex-col items-center justify-center max-w-full">
+        
+        {/* Animated 3D Golden Helmet Canvas */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 1.2, ease: "easeOut" }}
+          className="w-[200px] h-[200px] sm:w-[260px] sm:h-[260px] relative overflow-visible z-10 mb-2"
+        >
+          <CanvasErrorBoundary>
+            <Suspense fallback={null}>
+              <Canvas camera={{ position: [0, 0, 4.5], fov: 45 }}>
+                <ambientLight intensity={0.15} color="#ffffff" />
+                <directionalLight position={[5, 8, 5]} intensity={1.2} color="#D4AF6A" />
+                <directionalLight position={[-5, 5, -5]} intensity={0.6} color="#C89B5C" />
+                <GoldenHelmet />
+                <Environment preset="city" />
+                <ContactShadows position={[0, -1.0, 0]} opacity={0.4} scale={6} blur={2.5} far={3} color="#D4AF6A" />
+              </Canvas>
+            </Suspense>
+          </CanvasErrorBoundary>
+        </motion.div>
+
         {/* Animated J lettermark logo */}
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
