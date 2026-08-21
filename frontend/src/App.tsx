@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatContainer } from './components/ChatContainer';
 import { useChatStream, Message } from './hooks/useChatStream';
 import { useVoiceAssistant } from './hooks/useVoiceAssistant';
+import { AnimatePresence } from 'framer-motion';
+import { JarvisIntroOverlay } from './components/JarvisIntroOverlay';
 import { API_BASE_URL } from './config';
 import {
   ChatSession,
@@ -88,6 +90,22 @@ function App() {
   const isDeletingRef = useRef(false);
   const chatsRef = useRef<ChatSession[]>([]);
   const saveAbortRef = useRef<AbortController | null>(null);
+
+  // Intro overlay state (prevents replay on React re-renders)
+  const [showIntro, setShowIntro] = useState(() => {
+    return !sessionStorage.getItem('jarvis_intro_played');
+  });
+
+  // Intro timer
+  useEffect(() => {
+    if (showIntro) {
+      const timer = setTimeout(() => {
+        setShowIntro(false);
+        sessionStorage.setItem('jarvis_intro_played', 'true');
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [showIntro]);
 
   useEffect(() => {
     chatsRef.current = chats;
@@ -1620,6 +1638,11 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Intro Animation Overlay */}
+      <AnimatePresence>
+        {showIntro && <JarvisIntroOverlay />}
+      </AnimatePresence>
     </div>
   );
 }
