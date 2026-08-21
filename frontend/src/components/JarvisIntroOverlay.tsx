@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import ironManHelmet from './ironman.jpg';
+import ironManHelmet from './ironman.png';
 
 export const JarvisIntroOverlay: React.FC = () => {
   return (
@@ -19,21 +19,17 @@ export const JarvisIntroOverlay: React.FC = () => {
       {/* Intro Contents */}
       <div className="relative z-10 flex flex-col items-center justify-center max-w-full">
         
-        {/* Animated Iron Man Helmet Image from Reference (Transparent Blend & Masked) */}
+        {/* Animated Iron Man Helmet Image from Reference (True Transparent PNG) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 1.2, ease: "easeOut" }}
           className="w-[200px] h-[200px] sm:w-[260px] sm:h-[260px] relative overflow-hidden z-10 mb-2 flex items-center justify-center"
-          style={{
-            WebkitMaskImage: 'radial-gradient(circle, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 85%)',
-            maskImage: 'radial-gradient(circle, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 85%)',
-          }}
         >
           <img 
             src={ironManHelmet} 
             alt="Iron Man Helmet" 
-            className="w-full h-full object-contain mix-blend-screen" 
+            className="w-full h-full object-contain" 
           />
         </motion.div>
 
