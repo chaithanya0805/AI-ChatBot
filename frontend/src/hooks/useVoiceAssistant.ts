@@ -69,6 +69,7 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
   // Active session tracking to invalidate late/stale callbacks
   const ttsSessionIdRef = useRef<number>(0);
   const recognitionSessionIdRef = useRef<number>(0);
+  const lastSpokenTextRef = useRef<string>('');
 
   // Update ref to avoid stale closures in event handlers
   onSpeechResultRef.current = onSpeechResult;
@@ -106,6 +107,12 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       console.log("[useVoiceAssistant] speak() early return. isMuted:", isMuted, "hasSynthesis:", !!window.speechSynthesis);
       return;
     }
+
+    if (lastSpokenTextRef.current === text && window.speechSynthesis.speaking) {
+      console.log("[useVoiceAssistant] speak() early return: text is already being spoken");
+      return;
+    }
+    lastSpokenTextRef.current = text;
 
     console.log("[useVoiceAssistant] calling speechSynthesis.cancel()");
     window.speechSynthesis.cancel(); // Stop any ongoing speech
@@ -158,8 +165,12 @@ export const useVoiceAssistant = (onSpeechResult: (text: string) => void) => {
       setIsSpeaking(false);
     };
 
-    console.log("[useVoiceAssistant] calling speechSynthesis.speak(utterance)");
-    window.speechSynthesis.speak(utterance);
+    console.log("[useVoiceAssistant] queuing speechSynthesis.speak(utterance) in 100ms");
+    setTimeout(() => {
+      if (currentTtsSession !== ttsSessionIdRef.current) return;
+      console.log("[useVoiceAssistant] calling speechSynthesis.speak(utterance)");
+      window.speechSynthesis.speak(utterance);
+    }, 100);
   }, [voices, isMuted]);
 
   const stopSpeaking = useCallback(() => {
