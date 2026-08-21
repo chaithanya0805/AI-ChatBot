@@ -113,6 +113,8 @@ function App() {
 
   // 1. Auto-login on mount
   useEffect(() => {
+    // Clean up legacy guest chats from localStorage immediately to prevent loading
+    localStorage.removeItem('guest_chats');
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
       fetch(`${API_BASE_URL}/auth/me`, {
@@ -130,6 +132,7 @@ function App() {
         setUser(userData);
         setToken(storedToken);
         localStorage.removeItem('guest_chats');
+        sessionStorage.removeItem('guest_chats');
       })
       .catch(err => {
         console.error("Auto-login failed:", err);
@@ -253,7 +256,7 @@ function App() {
       });
     } else {
       // Guest mode load
-      const stored = localStorage.getItem('guest_chats');
+      const stored = sessionStorage.getItem('guest_chats');
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as ChatSession[];
@@ -360,7 +363,7 @@ function App() {
     } else {
       const updatedChats = chatsRef.current.map(c => c.id === chatId ? updatedChat : c);
       setChats(updatedChats);
-      localStorage.setItem('guest_chats', JSON.stringify(updatedChats));
+      sessionStorage.setItem('guest_chats', JSON.stringify(updatedChats));
     }
   }, [token]);
 
@@ -411,7 +414,7 @@ function App() {
       // Guest mode setup
       setChats(prev => {
         const next = [tempChat, ...prev.filter(c => c.messages.length > 0)];
-        localStorage.setItem('guest_chats', JSON.stringify(next));
+        sessionStorage.setItem('guest_chats', JSON.stringify(next));
         return next;
       });
       setActiveChatId(tempChat.id);
@@ -495,14 +498,14 @@ function App() {
       isSwitchingChat.current = false;
     } else {
       // Guest mode deletion storage sync
-      const stored = localStorage.getItem('guest_chats');
+      const stored = sessionStorage.getItem('guest_chats');
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as ChatSession[];
           const updated = parsed.filter(c => c.id !== chatId);
-          localStorage.setItem('guest_chats', JSON.stringify(updated));
+          sessionStorage.setItem('guest_chats', JSON.stringify(updated));
         } catch (err) {
-          console.error("Error updating guest local storage:", err);
+          console.error("Error updating guest session storage:", err);
         }
       }
       setTimeout(() => {
@@ -550,6 +553,7 @@ function App() {
       setActiveChatId(null);
       setSettingsOpen(false);
       localStorage.removeItem('guest_chats');
+      sessionStorage.removeItem('guest_chats');
       setTimeout(() => {
         handleNewChat();
       }, 0);
@@ -572,6 +576,7 @@ function App() {
         throw new Error(data.error || 'Authentication failed.');
       }
       localStorage.removeItem('guest_chats');
+      sessionStorage.removeItem('guest_chats');
       setChats([]);
       setMessages([]);
       setActiveChatId(null);
@@ -631,6 +636,7 @@ function App() {
         throw new Error(data.error || 'Verification failed.');
       }
       localStorage.removeItem('guest_chats');
+      sessionStorage.removeItem('guest_chats');
       setChats([]);
       setMessages([]);
       setActiveChatId(null);
@@ -742,6 +748,7 @@ function App() {
     }
     localStorage.removeItem('token');
     localStorage.removeItem('guest_chats');
+    sessionStorage.removeItem('guest_chats');
     setToken(null);
     setUser(null);
     setChats([]);
